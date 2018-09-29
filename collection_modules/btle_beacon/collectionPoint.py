@@ -1,10 +1,8 @@
 """
-BTLE iBeacon scanning collection module
-WIP 
+BTLE iBeacon collection module
 
-RegisteredClientRegistery manages the list of clients that are in rage
-event manager controllers and handles events and figures out if the event needs to be handled and put in the list of registered clients
-this module will not look at major and minor.  It will check that its an ibeacon and that data exists but it does not limit the scan results.
+RegisteredClientRegistery manages the list of clients that are in range
+
 """
 
 import sys,os
