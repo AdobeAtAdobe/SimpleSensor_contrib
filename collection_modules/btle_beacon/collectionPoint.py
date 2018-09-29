@@ -1,25 +1,22 @@
 """
 BTLE iBeacon collection module
-WIP 
 
-RegisteredClientRegistery manages the list of clients that are in rage
-event manager controllers and handles events and figures out if the event needs to be handled and put in the list of registered clients
+RegisteredClientRegistery manages the list of clients that are in range
+
 """
 
-import sys
-sys.path.append('./collection_modules/btleCollectionPoint/devices/bluegiga')
-sys.path.append('./collection_modules/btleCollectionPoint/libs')
-from simplesensor.collection_modules.btle_beacon import moduleConfigLoader as configLoader
-from devices.bluegiga.btleThread import BlueGigaBtleCollectionPointThread
+import sys,os
+from . import moduleConfigLoader as configLoader
+from .devices.bluegiga.btleThread import BlueGigaBtleCollectionPointThread
 from .registeredClientRegistry import RegisteredClientRegistry
-from simplesensor.shared import ThreadsafeLogger, ModuleProcess
+from simplesensor.shared.threadsafeLogger import ThreadsafeLogger
 from .repeatedTimer import RepeatedTimer
 from .eventManager import EventManager
 from threading import Thread
 import multiprocessing as mp
 import time
 
-class BtleCollectionPoint(ModuleProcess):
+class BtleCollectionPoint(Thread):
 
     def __init__(self, baseConfig, pInBoundQueue, pOutBoundQueue, loggingQueue):
         """ Initialize new CamCollectionPoint instance.
@@ -35,7 +32,7 @@ class BtleCollectionPoint(ModuleProcess):
         self.queueBLE = mp.Queue()
 
         # Configs
-        self.moduleConfig = configLoader.load(self.loggingQueue)
+        self.moduleConfig = configLoader.load(self.loggingQueue, __name__)
         self.config = baseConfig
 
         # Variables and objects
@@ -82,7 +79,7 @@ class BtleCollectionPoint(ModuleProcess):
                 try:
                     message = self.inQueue.get(block=False,timeout=1)
                     if message is not None:
-                        if (message.topic=="SHUTDOWN" and message.sender_id=='main'):
+                        if message == "SHUTDOWN":
                             self.logger.info("SHUTDOWN command handled on %s" % __name__)
                             self.shutdown()
                         else:
@@ -103,7 +100,7 @@ class BtleCollectionPoint(ModuleProcess):
 
     def handleMessage(self, msg):
         # Handle incoming messages, eg. from other collection points
-        pass
+        return
 
     def shutdown(self):
         self.logger.info("Shutting down")
