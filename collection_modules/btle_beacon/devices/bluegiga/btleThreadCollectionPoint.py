@@ -2,7 +2,7 @@
 # https://github.com/jrowberg/bglib/blob/master/Python/Examples/bled112_scanner.py
 #
 #
-from simplesensor.collection_modules.btle_beacon.libs import BGLib
+from .bglib import BGLib
 from simplesensor.shared import ThreadsafeLogger
 from pprint import pprint
 from serial import Serial
