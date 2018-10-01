@@ -14,8 +14,8 @@ class EventManager(object):
         self.__stats_totalRemoveEvents = 0
         self.__stats_totalNewEvents = 0
         self.registeredClientRegistry = registeredClientRegistry
-        self.registeredClientRegistry.eventRegisteredClientAdded += self.__newClientRegistered
-        self.registeredClientRegistry.eventRegisteredClientRemoved += self.__removedRegisteredClient
+        self.registeredClientRegistry.eventRegisteredClientAdded += self.newClientRegistered
+        self.registeredClientRegistry.eventRegisteredClientRemoved += self.removedRegisteredClient
         self.collectionPointConfig = collectionPointConfig
         self.outBoundEventQueue = pOutBoundQueue
 
@@ -32,10 +32,10 @@ class EventManager(object):
             self.logger.debug("New client with MAC %s found."%detectedClient.extraData["beaconMac"])
 
             if rClient.shouldSendClientInEvent():
-                self.__sendEventToController(rClient, "clientIn")
+                self.sendEventToController(rClient, "clientIn")
             elif rClient.shouldSendClientOutEvent():
                 self.logger.debug("########################################## SENDING CLIENT OUT eClient ##########################################")
-                self.__sendEventToController(rClient, "clientOut")
+                self.sendEventToController(rClient, "clientOut")
 
             self.registeredClientRegistry.addNewRegisteredClient(rClient)
 
@@ -43,10 +43,10 @@ class EventManager(object):
             eClient.updateWithNewDetectedClientData(detectedClient)
             if eClient.shouldSendClientInEvent():
                 #self.logger.debug("########################################## SENDING CLIENT IN ##########################################")
-                self.__sendEventToController(eClient,"clientIn")
+                self.sendEventToController(eClient,"clientIn")
             elif eClient.shouldSendClientOutEvent():
                 self.logger.debug("########################################## SENDING CLIENT OUT rClient ##########################################")
-                self.__sendEventToController(eClient,"clientOut")
+                self.sendEventToController(eClient,"clientOut")
 
             self.registeredClientRegistry.updateRegisteredClient(eClient)
 
@@ -58,7 +58,7 @@ class EventManager(object):
         """Returns a dict with the total New and Remove events the engine has seen since startup"""
         return {'NewEvents': self.__stats_totalNewEvents, 'RemoveEvents': self.__stats_totalRemoveEvents}
 
-    def __newClientRegistered(self,sender,registeredClient):
+    def newClientRegistered(self,sender,registeredClient):
         self.logger.debug("######### NEW CLIENT REGISTERED %s #########"%registeredClient.detectedClient.extraData["beaconMac"])
 
         #we dont need to count for ever and eat up all the memory
@@ -67,10 +67,10 @@ class EventManager(object):
         else:
             self.__stats_totalNewEvents += 1
 
-    def __removedRegisteredClient(self,sender,registeredClient):
+    def removedRegisteredClient(self,sender,registeredClient):
         self.logger.debug("######### REGISTERED REMOVED %s #########"%registeredClient.detectedClient.extraData["beaconMac"])
         if registeredClient.sweepShouldSendClientOutEvent():
-            self.__sendEventToController(registeredClient,"clientOut")
+            self.sendEventToController(registeredClient,"clientOut")
 
         #we dont need to count for ever and eat up all the memory
         if self.__stats_totalRemoveEvents > 1000000:
@@ -78,7 +78,7 @@ class EventManager(object):
         else:
             self.__stats_totalRemoveEvents  += 1
 
-    def __sendEventToController(self,registeredClient,eventType):
+    def sendEventToController(self,registeredClient,eventType):
 
         eventMessage = Message(
             topic=eventType,

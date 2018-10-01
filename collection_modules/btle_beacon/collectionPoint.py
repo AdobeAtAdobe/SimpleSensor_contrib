@@ -10,7 +10,7 @@ import sys
 sys.path.append('./collection_modules/btleCollectionPoint/devices/bluegiga')
 sys.path.append('./collection_modules/btleCollectionPoint/libs')
 from simplesensor.collection_modules.btle_beacon import moduleConfigLoader as configLoader
-from devices.bluegiga.btleThread import BlueGigaBtleCollectionPointThread
+from .devices.bluegiga.btleThread import BlueGigaBtleCollectionPointThread
 from .registeredClientRegistry import RegisteredClientRegistry
 from simplesensor.shared import ThreadsafeLogger, ModuleProcess
 from .repeatedTimer import RepeatedTimer
@@ -25,7 +25,7 @@ class BtleCollectionPoint(ModuleProcess):
         """ Initialize new CamCollectionPoint instance.
         Setup queues, variables, configs, constants and loggers.
         """
-        super(BtleCollectionPoint, self).__init__()
+        super().__init__(baseConfig, pInBoundQueue, pOutBoundQueue, loggingQueue)
         self.loggingQueue = loggingQueue
         self.logger = ThreadsafeLogger(loggingQueue, __name__)
 
@@ -35,7 +35,7 @@ class BtleCollectionPoint(ModuleProcess):
         self.queueBLE = mp.Queue()
 
         # Configs
-        self.moduleConfig = configLoader.load(self.loggingQueue)
+        self.moduleConfig = configLoader.load(self.loggingQueue, __name__)
         self.config = baseConfig
 
         # Variables and objects

@@ -9,7 +9,7 @@ import platform
 from threading import Thread
 from .btleThreadCollectionPoint import BtleThreadCollectionPoint
 from simplesensor.collection_modules.btle_beacon.detectedClient import DetectedClient
-from threadsafeLogger import ThreadsafeLogger
+from simplesensor.shared import ThreadsafeLogger
 
 class BlueGigaBtleCollectionPointThread(Thread):
 
