@@ -40,6 +40,38 @@ def loadModule(thisConfig, logger, configParser):
 
     exit
 
+    """btel_test_mode"""
+    try:
+        configValue=configParser.getboolean('ModuleConfig','btle_test_mode')
+    except:
+        configValue = False
+    logger.info("btle test mode : %s" % configValue)
+    thisConfig['BtleTestMode'] = configValue
+
+    """cec_data"""
+    try:
+        configValue=configParser.getboolean('ModuleConfig','cec_data')
+    except:
+        configValue = False
+    logger.info("cec data add : %s" % configValue)
+    thisConfig['CecData'] = configValue
+
+    """eventmanager_debug"""
+    try:
+        configValue=configParser.getboolean('ModuleConfig','eventmanager_debug')
+    except:
+        configValue = False
+    logger.info("EventManager debug : %s" % configValue)
+    thisConfig['EventManagerDebug'] = configValue
+
+    """show_client_range_debug"""
+    try:
+        configValue=configParser.getboolean('ModuleConfig','show_client_range_debug')
+    except:
+        configValue = False
+    logger.info("Show client range debug debug : %s" % configValue)
+    thisConfig['ShowClientRangeDebug'] = configValue
+
     try:
         configValue=configParser.get('ModuleConfig','collection_point_id')
     except:
@@ -126,21 +158,37 @@ def loadModule(thisConfig, logger, configParser):
     logger.info("Btle device baud rate : %s" % configValue)
     thisConfig['BtleDeviceBaudRate'] = configValue
 
-    """Btle advertising major"""
+    """Btle advertising major min"""
     try:
-        configValue=configParser.getint('ModuleConfig','btle_advertising_major')
+        configValue=configParser.getint('ModuleConfig','btle_advertising_major_min')
     except:
-        configValue = 100
-    logger.info("Btle advertising major : %s" % configValue)
-    thisConfig['BtleAdvertisingMajor'] = configValue
+        configValue = 0
+    logger.info("Btle advertising major min : %s" % configValue)
+    thisConfig['BtleAdvertisingMajorMin'] = configValue
 
-    """Btle advertising minor"""
+    """Btle advertising major max"""
     try:
-        configValue=configParser.getint('ModuleConfig','btle_advertising_minor')
+        configValue=configParser.getint('ModuleConfig','btle_advertising_major_max')
     except:
-        configValue = 10
-    logger.info("Btle advertising minor : %s" % configValue)
-    thisConfig['BtleAdvertisingMinor'] = configValue
+        configValue = 9999
+    logger.info("Btle advertising major max : %s" % configValue)
+    thisConfig['BtleAdvertisingMajorMax'] = configValue
+
+    """Btle advertising minor min"""
+    try:
+        configValue=configParser.getint('ModuleConfig','btle_advertising_minor_min')
+    except:
+        configValue = 0
+    logger.info("Btle advertising minor min : %s" % configValue)
+    thisConfig['BtleAdvertisingMinorMin'] = configValue
+
+    """Btle advertising minor max"""
+    try:
+        configValue=configParser.getint('ModuleConfig','btle_advertising_minor_max')
+    except:
+        configValue = 9999
+    logger.info("Btle advertising minor max : %s" % configValue)
+    thisConfig['BtleAdvertisingMinorMax'] = configValue
 
     """Btle anomaly reset limit"""
     try:

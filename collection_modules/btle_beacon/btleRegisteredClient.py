@@ -28,7 +28,8 @@ class BtleRegisteredClient(object):
         try:
             self.uidMap = UIDMap()
         except Exception as e:
-            print('cant instantiate uid map: %s '%e)
+            self.logger.warning('cant instantiate uid map: %s '%e)
+
         # Constants
         self._rssiClientInThresh = self.collectionPointConfig['BtleRssiClientInThreshold']
         self._rssiErrorVar = self.collectionPointConfig['BtleRssiErrorVariance']
@@ -58,12 +59,12 @@ class BtleRegisteredClient(object):
                 if self.detectedClient.extraData['rssi'] >= self.collectionPointConfig['BtleRssiClientInThreshold']:
                     self.numClientInRange = self.numClientInRange + 1
                     self.numClientOutRange = 0
-                    self.logger.debug("CLIENT IN RANGE>>>>>>>>>>>")
+                    self.logClientRange("CLIENTIN")
 
                 elif self.detectedClient.extraData['rssi'] < self.__clientOutThresholdMin:
                         self.numClientOutRange = self.numClientOutRange + 1
                         #self.numClientInRange = 0
-                        self.logger.debug("CLIENT OUT OF RANGE<<<<<<<<<<<")
+                        self.logClientRange("CLIENTOUT")
 
     #part of interface for Registered Client
     def shouldSendClientInEvent(self):
@@ -76,7 +77,7 @@ class BtleRegisteredClient(object):
 
             if timeDiff > proximityEventIntervalInSeconds:
                 if self.numClientInRange > self.clientInRangeTrigerCount:
-                    self.logClientEventSend("SHOULD ClientIN event to controller for")
+                    self.logClientEventSend(" ClientIN event sent to controller ")
                     self.zeroEventRangeCounters()
                     return True
 
@@ -101,7 +102,7 @@ class BtleRegisteredClient(object):
                 if self.prevClientOutMsgTime < self.prevClientInMsgTime:
                     #do we have enought qualifying out events. we dont want to throw one too soon
                     if self.numClientOutRange >= self.collectionPointConfig['BtleClientOutCountThreshold']:
-                        self.logClientEventSend("SHOULD ClientOUT event to controller for")
+                        self.logClientEventSend(" ClientOUT event sent to controller ")
                         self.zeroEventRangeCounters()
                         return True
 
@@ -155,23 +156,52 @@ class BtleRegisteredClient(object):
         self.numClientInRange = 0
 
     def logClientEventSend(self,message):
+        if self.collectionPointConfig['EventManagerDebug']:
+            self.logger.debug("")
+            self.logger.debug("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+            self.logger.debug("%%%%%%%%%%%%%%%%%% %s %%%%%%%%%%%%%%%%%%" %message)
+            self.logger.debug("    UDID is %s " %self.getUdid())
+            self.logger.debug("    Beacon ID is %s " %self.beaconId)
+            self.logger.debug("    RSSI %i" %self.detectedClient.extraData['rssi'])
+            self.logger.debug("    Major %i" %self.detectedClient.extraData['majorNumber'])
+            self.logger.debug("    Minor %i" %self.detectedClient.extraData['minorNumber'])
+            self.logger.debug("    BTLE RSSI client in threshold %i" %self.collectionPointConfig['BtleRssiClientInThreshold'])
+            self.logger.debug("    BTLE RSSI client out threshold %i" %self.__clientOutThresholdMin)
+            self.logger.debug("    inCount %i : outCount %i" %(self.numClientInRange,self.numClientOutRange))
+            self.logger.debug("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+            self.logger.debug("")
         return
-        # self.logger.debug("")
-        # self.logger.debug("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-        # self.logger.debug("%%%%%%%%%%%%%%%%%% %s %%%%%%%%%%%%%%%%%%" %message)
-        # self.logger.debug("UDID is %s " %self.getUdid())
-        # self.logger.debug("Beacon ID is %s " %self.beaconId)
-        # self.logger.debug("RSSI %i" %self.detectedClient.extraData['rssi'])
-        # self.logger.debug("BTLE RSSI client in threshold %i" %self.collectionPointConfig['BtleRssiClientInThreshold'])
-        # self.logger.debug("BTLE RSSI client out threshold %i" %self.__clientOutThresholdMin)
-        # self.logger.debug("inCount %i : outCount %i" %(self.numClientInRange,self.numClientOutRange))
-        # self.logger.debug("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-        # self.logger.debug("")
 
+
+    def logClientRange(self,eventType):
+        if self.collectionPointConfig['ShowClientRangeDebug']:
+
+            if eventType.upper() == "CLIENTIN":
+                self.logger.debug("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< IN RANGE <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+            else:
+                self.logger.debug(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> OUT OF RANGE  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+
+            self.logger.debug("    UDID is %s " %self.getUdid())
+            self.logger.debug("    Beacon ID is %s " %self.beaconId)
+            self.logger.debug("    RSSI %i" %self.detectedClient.extraData['rssi'])
+            self.logger.debug("    Major %i" %self.detectedClient.extraData['majorNumber'])
+            self.logger.debug("    Minor %i" %self.detectedClient.extraData['minorNumber'])
+            self.logger.debug("    BTLE RSSI client in threshold %i" %self.collectionPointConfig['BtleRssiClientInThreshold'])
+            self.logger.debug("    BTLE RSSI client out threshold %i" %self.__clientOutThresholdMin)
+            self.logger.debug("    inCount %i : outCount %i" %(self.numClientInRange,self.numClientOutRange))
+
+            if eventType.upper() == "CLIENTIN":
+                self.logger.debug("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< IN RANGE END <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+            else:
+                self.logger.debug(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> OUT OF RANGE END >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+
+            self.logger.debug("")
+        return
 
     #part of interface for Registered Client
     def getExtendedDataForEvent(self):
         extraData = {}
+        extraData['gatewayType'] = self.collectionPointConfig['GatewayType']
         extraData['lastRegisteredTime'] = self.lastRegisteredTime
         extraData['firstRegisteredTime'] = self.firstRegisteredTime
         extraData['prevClientInMsgTime'] = self.prevClientInMsgTime
@@ -182,7 +212,10 @@ class BtleRegisteredClient(object):
         extraData['txPower'] = self.getTxPower()
         extraData['beaconId'] = self.beaconId
         extraData['beaconMac'] = self.detectedClient.extraData["beaconMac"]
-        extraData['industry'] = self.uidMap.get(self.beaconId)
+        extraData['major'] = self.detectedClient.extraData["majorNumber"]
+        extraData['minor'] = self.detectedClient.extraData["minorNumber"]
+        if self.collectionPointConfig['CecData']:
+            extraData['industry'] = self.uidMap.get(self.beaconId)
 
         return extraData
 

@@ -94,12 +94,8 @@ class BtleCollectionPoint(ModuleProcess):
             else:
                 time.sleep(.25)
 
-    def __handleBtleClientEvents(self, detectedClients):
-        for client in detectedClients:
-            self.logger.debug("--- Found client ---")
-            self.logger.debug(vars(client))
-            self.logger.debug("--- Found client end ---")
-            self.eventManager.registerDetectedClient(client)
+    def __handleBtleClientEvents(self, detectedClient):
+        self.eventManager.registerDetectedClient(detectedClient)
 
     def handleMessage(self, msg):
         # Handle incoming messages, eg. from other collection points

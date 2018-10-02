@@ -47,7 +47,6 @@ class BlueGigaBtleCollectionPointThread(Thread):
 
         #check to make sure there is enough data to be a beacon
         if len(args["data"]) > 15:
-            # self.logger.debug("=============================== eventScanResponse START ===============================")
             try:
                 majorNumber = args["data"][26] | (args["data"][25] << 8)
                 # self.logger.debug("majorNumber=%i"%majorNumber)
@@ -60,35 +59,35 @@ class BlueGigaBtleCollectionPointThread(Thread):
             except:
                 minorNumber = 0
 
-            if self.btleConfig['BtleAdvertisingMajor'] == majorNumber and self.btleConfig['BtleAdvertisingMinor'] == minorNumber:
-                self.logger.debug("self.btleConfig['BtleAdvertisingMinor'] == %i and self.btleConfig['BtleAdvertisingMinor'] == %i "%(majorNumber,minorNumber))
-                self.logger.debug("yep, we care about this major and minor so lets create a detected client and pass it to the event manager")
-
+            if (self.btleConfig['BtleAdvertisingMajorMin'] <= majorNumber <= self.btleConfig['BtleAdvertisingMajorMax']) and (self.btleConfig['BtleAdvertisingMinorMin'] <= minorNumber <= self.btleConfig['BtleAdvertisingMinorMax']):
                 udid = "%s" % ''.join(['%02X' % b for b in args["data"][9:25]])
-                self.logger.debug("UDID=%s"%udid)
                 rssi = args["rssi"]
-                self.logger.debug("rssi=%s"%rssi)
-
                 beaconMac = "%s" % ''.join(['%02X' % b for b in args["sender"][::-1]])
-                self.logger.debug("beaconMac=%s"%beaconMac)
                 rawTxPower = args["data"][29]
-                self.logger.debug("rawTxPower=%i"%rawTxPower)
 
                 if rawTxPower <= 127:
                     txPower = rawTxPower
                 else:
                     txPower = rawTxPower - 256
-                self.logger.debug("txPower=%i"%txPower)
 
-                arrayDetectedClients = [] #we send an array to the event queue, we used to process bacthes of responses
+                if self.btleConfig['BtleTestMode']:
+                    self.logger.debug("=============================== eventScanResponse START ===============================")
+                    #self.logger.debug("self.btleConfig['BtleAdvertisingMinor'] == %i and self.btleConfig['BtleAdvertisingMinor'] == %i "%(majorNumber,minorNumber))
+                    #self.logger.debug("yep, we care about this major and minor so lets create a detected client and pass it to the event manager")
+                    self.logger.debug("Major=%s"%majorNumber)
+                    self.logger.debug("Minor=%s"%minorNumber)
+                    self.logger.debug("UDID=%s"%udid)
+                    self.logger.debug("rssi=%s"%rssi)
+                    self.logger.debug("beaconMac=%s"%beaconMac)
+                    self.logger.debug("txPower=%i"%txPower)
+                    self.logger.debug("rawTxPower=%i"%rawTxPower)
+                    self.logger.debug("================================= eventScanResponse END =================================")
 
                 #package it up for sending to the queue
                 detectedClient = DetectedClient('btle',udid=udid,beaconMac=beaconMac,majorNumber=majorNumber,minorNumber=minorNumber,tx=txPower,rssi=rssi)
-                arrayDetectedClients.append(detectedClient)
-
+                
                 #put it on the queue for the event manager to pick up
-                self.queue.put(arrayDetectedClients)
-                self.logger.debug("================================= eventScanResponse END =================================")
+                self.queue.put(detectedClient)
 
     def stop(self):
         self.alive = False

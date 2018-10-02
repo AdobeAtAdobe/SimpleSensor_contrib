@@ -21,7 +21,7 @@ class EventManager(object):
 
 
     def registerDetectedClient(self, detectedClient):
-        self.logger.debug("Registering detected client %s"%detectedClient.extraData["beaconMac"])
+        #self.logger.debug("Registering detected client %s"%detectedClient.extraData["beaconMac"])
         eClient = self.registeredClientRegistry.getRegisteredClient(detectedClient.extraData["beaconMac"])
 
         #check for existing
@@ -29,12 +29,13 @@ class EventManager(object):
             #Newly found client
             if self.collectionPointConfig['InterfaceType'] == 'btle':
                 rClient = BtleRegisteredClient(detectedClient,self.collectionPointConfig,self.loggingQueue)
-            self.logger.debug("New client with MAC %s found."%detectedClient.extraData["beaconMac"])
+            #self.logger.debug("New client with MAC %s found."%detectedClient.extraData["beaconMac"])
 
             if rClient.shouldSendClientInEvent():
                 self.sendEventToController(rClient, "clientIn")
             elif rClient.shouldSendClientOutEvent():
-                self.logger.debug("########################################## SENDING CLIENT OUT eClient ##########################################")
+                #if self.collectionPointConfig['EventManagerDebug']:
+                    #self.logger.debug("########################################## SENDING CLIENT OUT eClient ##########################################")
                 self.sendEventToController(rClient, "clientOut")
 
             self.registeredClientRegistry.addNewRegisteredClient(rClient)
@@ -42,10 +43,12 @@ class EventManager(object):
         else:
             eClient.updateWithNewDetectedClientData(detectedClient)
             if eClient.shouldSendClientInEvent():
-                #self.logger.debug("########################################## SENDING CLIENT IN ##########################################")
+                #if self.collectionPointConfig['EventManagerDebug']:
+                    #self.logger.debug("########################################## SENDING CLIENT IN ##########################################")
                 self.sendEventToController(eClient,"clientIn")
             elif eClient.shouldSendClientOutEvent():
-                self.logger.debug("########################################## SENDING CLIENT OUT rClient ##########################################")
+                #if self.collectionPointConfig['EventManagerDebug']:
+                    #self.logger.debug("########################################## SENDING CLIENT OUT rClient ##########################################")
                 self.sendEventToController(eClient,"clientOut")
 
             self.registeredClientRegistry.updateRegisteredClient(eClient)
@@ -59,7 +62,8 @@ class EventManager(object):
         return {'NewEvents': self.__stats_totalNewEvents, 'RemoveEvents': self.__stats_totalRemoveEvents}
 
     def newClientRegistered(self,sender,registeredClient):
-        self.logger.debug("######### NEW CLIENT REGISTERED %s #########"%registeredClient.detectedClient.extraData["beaconMac"])
+        #if self.collectionPointConfig['EventManagerDebug']:
+            #self.logger.debug("######### NEW CLIENT REGISTERED %s #########"%registeredClient.detectedClient.extraData["beaconMac"])
 
         #we dont need to count for ever and eat up all the memory
         if self.__stats_totalNewEvents > 1000000:
@@ -68,7 +72,9 @@ class EventManager(object):
             self.__stats_totalNewEvents += 1
 
     def removedRegisteredClient(self,sender,registeredClient):
-        self.logger.debug("######### REGISTERED REMOVED %s #########"%registeredClient.detectedClient.extraData["beaconMac"])
+        #if self.collectionPointConfig['EventManagerDebug']:
+            #self.logger.debug("######### REGISTERED REMOVED %s #########"%registeredClient.detectedClient.extraData["beaconMac"])
+
         if registeredClient.sweepShouldSendClientOutEvent():
             self.sendEventToController(registeredClient,"clientOut")
 
@@ -81,6 +87,16 @@ class EventManager(object):
     def sendEventToController(self,registeredClient,eventType):
 
         eventMessage = Message(
+            #TODO:// review this. i think we could clean a bunch with a standard in topic like /module_name/mode if defined  
+            # mode for example btle has like 3 modes where the events are fired but their meaning is slighly different
+            # then you listen to a topic all events from that sensor are on that topic
+            #
+            # the way is is now with topic being the event name I could see clientIn and clientOut from different modules and need to read the extra data to know if i care or not
+            # maybe that is right but we would need to define a high level spec so its not a mess.  Like topic /presence/event or /enviroment/data or something like that.
+            #
+            #topic="btle_beacon-%s"%(self.collectionPointConfig['GatewayType']),
+            #sender_id=self.collectionPointConfig['CollectionPointId'],
+            #sender_type=eventType,
             topic=eventType,
             sender_id=self.collectionPointConfig['CollectionPointId'],
             sender_type=self.collectionPointConfig['GatewayType'],

@@ -120,7 +120,7 @@ class RegisteredClientRegistry(object):
                 clientsToBeRemoved.append(regClient)
 
         for client in clientsToBeRemoved:
-            self.logger.debug("Client sweep removing udid %s"%client.getUdid())
+            # self.logger.debug("Client sweep removing udid %s"%client.getUdid())
             self.removeRegisteredClient(client)
 
         self.logger.debug("*** End of sweeping tags existing count %s***"%len(self.rClients))
@@ -130,16 +130,16 @@ class RegisteredClientRegistry(object):
         return clientsToBeRemoved
 
     def addNewRegisteredClient(self,registeredClient):
-        self.logger.debug("in addNewRegisteredClient with %s"%registeredClient.getUdid())
+        #self.logger.debug("in addNewRegisteredClient with %s"%registeredClient.getUdid())
         self.rClients[registeredClient.getUdid()] = registeredClient
         self.eventRegisteredClientAdded(registeredClient)#throw event
 
     def updateRegisteredClient(self,registeredClient):
-        self.logger.debug("in updateRegisteredClient with %s"%registeredClient.getUdid())
+        #self.logger.debug("in updateRegisteredClient with %s"%registeredClient.getUdid())
         self.rClients[registeredClient.getUdid()] = registeredClient
         self.eventRegisteredClientUpdated(registeredClient)#throw event
 
     def removeRegisteredClient(self,registeredClient):
-        self.logger.debug("in removeRegisteredClient with %s"%registeredClient.getUdid())
+        #self.logger.debug("in removeRegisteredClient with %s"%registeredClient.getUdid())
         self.rClients.pop(registeredClient.getUdid())
         self.eventRegisteredClientRemoved(registeredClient)#throw event
