@@ -103,15 +103,15 @@ class ClientRegistry(object):
     def getUpdateData(self):
         return {'nearby': self.getAll()}
 
-    def getClient(self,udid):
+    def getClient(self,mac):
         """
-        Get an existing registered client by udid 
+        Get an existing registered client by mac 
         and if its found return it. 
         If no existing registered client is found 
         return None.
         """
         try:
-            eClient = self.rClients[udid]
+            eClient = self.rClients[mac]
         except KeyError:
             eClient = None
 
@@ -132,14 +132,14 @@ class ClientRegistry(object):
         currentExpireTime = (time.time() -
             (self.collectionPointConfig['AbandonedClientTimeout']/1000))
 
-        for udid in self.rClients:
-            regClient = self.rClients[udid]
+        for mac in self.rClients:
+            regClient = self.rClients[mac]
 
             if regClient.lastRegisteredTime < currentExpireTime:
                 clientsToBeRemoved.append(regClient)
 
         for client in clientsToBeRemoved:
-            # self.logger.debug("Client sweep removing udid %s"%client.getUdid())
+            # self.logger.debug("Client sweep removing mac %s"%client.getMac())
             self.removeRegisteredClient(client)
 
         self.logger.debug("*** End of sweeping tags existing count "+
@@ -151,15 +151,15 @@ class ClientRegistry(object):
 
     def addClient(self,client):
         #self.logger.debug("in addNewRegisteredClient with %s"%client.getUdid())
-        self.rClients[client.getUdid()] = client
+        self.rClients[client.getMac()] = client
         self.onClientAdded(client)
 
     def updateClient(self,client):
         #self.logger.debug("in updateRegisteredClient with %s"%client.getUdid())
-        self.rClients[client.getUdid()] = client
+        self.rClients[client.getMac()] = client
         self.onClientUpdated(client)
 
     def removeClient(self,client):
         #self.logger.debug("in removeRegisteredClient with %s"%client.getUdid())
-        self.rClients.pop(client.getUdid())
+        self.rClients.pop(client.getMac())
         self.onClientRemoved(client)

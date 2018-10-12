@@ -28,7 +28,7 @@ after the user is IN RANGE you will continue to get events at an interval specif
 
 `client_out` will also be send when old clients are cleaned up.  This handles when people don't smoothly move out of range but instead disapear from the reader.  This clean up is defined by AbandonedClientCleanupIntervalInMilliseconds
 
-`btle_update_nearby` will be sent if the flag `send_update_messages` is set to `True` in the module config. These are sent every `1/FPS` seconds, with FPS defined in the module config as `update_fps`. The message contains an `extended_data` field with 1 key, `nearby`. This maps to a dict of `UUID -> detectionData` pairs. This is useful for reacting to the distance and distance changes on a message consumer.
+`btle_update_nearby` will be sent if the flag `send_update_messages` is set to `True` in the module config. These are sent every `1/FPS` seconds, with FPS defined in the module config as `update_fps`. The message contains an `extended_data` field with 1 key, `nearby`. This maps to a dict of `MAC -> detectionData` pairs. This is useful for reacting to the distance and distance changes on a message consumer.
 
 
 #### Example In gateway:

@@ -156,11 +156,10 @@ class BtleClient(object):
                 return True
 
         #TODO add in other types of gateway types
-
         return True
 
     #part of interface for Registered Client
-    def getUdid(self):
+    def getMac(self):
         return self.detectionData.extraData["beaconMac"]
 
     def getTxPower(self):
@@ -176,7 +175,7 @@ class BtleClient(object):
             self.logger.debug("")
             self.logger.debug("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
             self.logger.debug("%%%%%%%%%%%%%%%%%% %s %%%%%%%%%%%%%%%%%%" %message)
-            self.logger.debug("    UDID is %s " %self.getUdid())
+            self.logger.debug("    MAC is %s " %self.getMac())
             self.logger.debug("    Beacon ID is %s " %self.beaconId)
             self.logger.debug("    RSSI %i" %self.detectionData.extraData['rssi'])
             self.logger.debug("    Major %i" %self.detectionData.extraData['majorNumber'])
@@ -197,7 +196,7 @@ class BtleClient(object):
             else:
                 self.logger.debug(">>>>>>>>>>>>>>>>> OUT OF RANGE >>>>>>>>>>>>>>>>>")
 
-            self.logger.debug("    UDID is %s " %self.getUdid())
+            self.logger.debug("    MAC is %s " %self.getMac())
             self.logger.debug("    Beacon ID is %s " %self.beaconId)
             self.logger.debug("    RSSI %i" %self.detectionData.extraData['rssi'])
             self.logger.debug("    Major %i" %self.detectionData.extraData['majorNumber'])
