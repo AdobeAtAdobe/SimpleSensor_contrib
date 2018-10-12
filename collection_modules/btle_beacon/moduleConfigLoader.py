@@ -238,6 +238,22 @@ def loadModule(thisConfig, logger, configParser):
     logger.info("Btle client out count threshold : %s" % configValue)
     thisConfig['BtleClientOutCountThreshold'] = configValue
 
+    """ Send clientIn messages"""
+    try:
+        configValue=configParser.getboolean('ModuleConfig','send_client_in_messages')
+    except:
+        configValue = False
+    logger.info("Send clientIn messages : %s" % configValue)
+    thisConfig['SendClientInMessages'] = configValue
+
+    """ Send clientOut messages"""
+    try:
+        configValue=configParser.getboolean('ModuleConfig','send_client_out_messages')
+    except:
+        configValue = False
+    logger.info("Send clientOut messages : %s" % configValue)
+    thisConfig['SendClientOutMessages'] = configValue
+
     """ Send update messages"""
     try:
         configValue=configParser.getboolean('ModuleConfig','send_update_messages')

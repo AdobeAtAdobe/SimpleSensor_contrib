@@ -17,15 +17,18 @@ This was built and tuned for the BlueGiga bled112 device.  It has been used with
 - When the beacon has not been seen for 20 scans a exit event is thrown.
 
 #### Proximity Gateway Events thrown
-ClientIn
-ClientOut
+1. `client_in`
+2. `client_out`
+3. `btle_update_nearby`
 
-ClientIn will be sent after the ibeacon is seen closer than the value listed in CONFIG value BtleRssiClientInThreshold
+`client_in` will be sent after the ibeacon is seen closer than the value listed in CONFIG value BtleRssiClientInThreshold
 after the user is IN RANGE you will continue to get events at an interval specified by CONFIG value ProximityEventIntervalInMilliseconds.  So if this is set to 5 seconds you will get a ClientIn every 5 seconds to let you know the user is still found and within range.
 
-ClientOut will be send after the ibeacon is seen with a strenght higher than the range found in CONFIG BtleRssiClientInThreshold.  They must be seen out of range for CONFIG leaveTimeInMilliseconds before the event is sent.  This is to help to smooth out the events and is needed especially when the users are right on the edge of the max range of the area defined as in range.
+`client_out` will be send after the ibeacon is seen with a strenght higher than the range found in CONFIG BtleRssiClientInThreshold.  They must be seen out of range for CONFIG leaveTimeInMilliseconds before the event is sent.  This is to help to smooth out the events and is needed especially when the users are right on the edge of the max range of the area defined as in range.
 
-ClientOut will also be send when old clients are cleaned up.  This handles when people don't smoothly move out of range but instead disapear from the reader.  This clean up is defined by AbandonedClientCleanupIntervalInMilliseconds
+`client_out` will also be send when old clients are cleaned up.  This handles when people don't smoothly move out of range but instead disapear from the reader.  This clean up is defined by AbandonedClientCleanupIntervalInMilliseconds
+
+`btle_update_nearby` will be sent if the flag `send_update_messages` is set to `True` in the module config. These are sent every `1/FPS` seconds, with FPS defined in the module config as `update_fps`. The message contains an `extended_data` field with 1 key, `nearby`. This maps to a dict of `UUID -> detectionData` pairs. This is useful for reacting to the distance and distance changes on a message consumer.
 
 
 #### Example In gateway:

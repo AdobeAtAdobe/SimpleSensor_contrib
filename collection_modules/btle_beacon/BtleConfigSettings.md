@@ -29,6 +29,10 @@ btle_rssi_error_variance | float | we use this to detect what we consider an ano
 btle_device_baud_rate | string | sevice read baud rate
 btle_device_tx_power| string | btle device transmit power.  sets the device output power
 btle_client_out_count_threshold | string |  how many times a user needs to be seen out of range before we send the out event
+send_client_in_messages| boolean | flag to send or not send client_in messages
+send_client_out_messages | boolean | flag to send or not send client_out messages
+send_update_messages | boolean | flag to send or not send btle_update_nearby messages
+update_fps | integer | frequency in Hz to send the update message
 slack_channel_webhook_url | string |  we use this to warn us if the service fails to connect to the BTLE reader when started.  We have people watching for messages there and responding in emergencies
 
 

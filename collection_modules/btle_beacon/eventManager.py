@@ -12,6 +12,8 @@ from threading import Thread
 import time
 
 _UPDATE_TOPIC = 'btle_update_nearby'
+_CLIENT_IN_TOPIC = 'client_in'
+_CLIENT_OUT_TOPIC = 'client_out'
 
 class EventManager(object):
     def __init__(self, moduleConfig, pOutBoundQueue, clientRegistry, loggingQueue):
@@ -27,7 +29,11 @@ class EventManager(object):
         self.outBoundEventQueue = pOutBoundQueue
         self.alive = True
 
-        if self.moduleConfig['SendUpdateMessages']:
+        self._sendClientInMessages = self.moduleConfig['SendClientInMessages']
+        self._sendClientOutMessages = self.moduleConfig['SendClientOutMessages']
+        self._sendUpdateMessages = self.moduleConfig['SendUpdateMessages']
+
+        if self._sendUpdateMessages:
             self._updateFPS = self.moduleConfig['UpdateFPS']
             self.updateLoopThread = Thread(target=self.updateLoop)
             self.updateLoopThread.start()
@@ -59,12 +65,12 @@ class EventManager(object):
             #   detectedData.extraData["beaconMac"])
 
             if rClient.shouldSendClientInEvent():
-                self.sendEventToController(topic="clientIn", client=rClient)
+                self.sendEventToController(topic=_CLIENT_IN_TOPIC, client=rClient)
             elif rClient.shouldSendClientOutEvent():
                 #if self.moduleConfig['EventManagerDebug']:
                     #self.logger.debug("######################" +
                     #   "SENDING CLIENT OUT eClient ######################")
-                self.sendEventToController(topic="clientOut", client=rClient)
+                self.sendEventToController(topic=_CLIENT_OUT_TOPIC, client=rClient)
 
             self.clientRegistry.addClient(rClient)
 
@@ -74,12 +80,12 @@ class EventManager(object):
                 #if self.moduleConfig['EventManagerDebug']:
                     #self.logger.debug###################### "+
                     #   "SENDING CLIENT IN ######################")
-                self.sendEventToController(topic="clientIn", client=eClient)
+                self.sendEventToController(topic=_CLIENT_IN_TOPIC, client=eClient)
             elif eClient.shouldSendClientOutEvent():
                 #if self.moduleConfig['EventManagerDebug']:
                     #self.logger.debug###################### "
                     #   +"SENDING CLIENT OUT rClient ######################")
-                self.sendEventToController(topic="clientOut", client=eClient)
+                self.sendEventToController(topic=_CLIENT_OUT_TOPIC, client=eClient)
 
             self.clientRegistry.updateClient(eClient)
 
@@ -111,7 +117,7 @@ class EventManager(object):
             #   "%s #########"%client.detectedData.extraData["beaconMac"])
 
         if client.sweepShouldSendClientOutEvent():
-            self.sendEventToController(topic="clientOut", client=client)
+            self.sendEventToController(topic=_CLIENT_OUT_TOPIC, client=client)
 
         #we dont need to count for ever and eat up all the memory
         if self.__stats_totalRemoveEvents > 1000000:
@@ -138,6 +144,12 @@ class EventManager(object):
             #topic="btle_beacon-%s"%(self.moduleConfig['GatewayType']),
             #sender_id=self.moduleConfig['CollectionPointId'],
             #sender_type=eventType,
+        # immediately check if the event should be sent
+        if ((topic==_CLIENT_IN_TOPIC and not self._sendClientInMessages) or
+            (topic==_CLIENT_OUT_TOPIC and not self._sendClientOutMessages) or
+            (topic==_UPDATE_TOPIC and not self._sendUpdateMessages)):
+                return
+
         data = {}
         if client:
             data = client.getExtendedDataForEvent()  
@@ -152,11 +164,11 @@ class EventManager(object):
             extended_data=data,
             timestamp=client.lastRegisteredTime if client else datetime.now())
 
-        if topic == 'clientIn':
+        if topic == _CLIENT_IN_TOPIC:
             client.setClientInMessageSentToController()
-        elif topic == 'clientOut':
+        elif topic == _CLIENT_OUT_TOPIC:
             client.setClientOutMessageSentToController()
-        elif topic == 'update':
+        elif topic == _UPDATE_TOPIC:
             # skip the updateClient call
             self.outBoundEventQueue.put(eventMessage)
             return
