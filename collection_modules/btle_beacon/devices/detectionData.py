@@ -1,8 +1,9 @@
 """
-Detected client is the raw event from the device interface.
+Detection data
+The raw event from the device interface.
 """
 import time 
-class DetectedClient:
+class DetectionData(object):
     def __init__(self,type,**kwargs):
         self.type=type
         if self.type == 'btle':
@@ -17,4 +18,4 @@ class DetectedClient:
             self.extraData['rssi'] = kwargs.get('rssi',0)
 
     def __str__(self):
-        return "udid: {1} \n createTime: {2}".format(self.udid, self.createTime)
+        return "udid: {} \n createTime: {}".format(self.udid, self.createTime)

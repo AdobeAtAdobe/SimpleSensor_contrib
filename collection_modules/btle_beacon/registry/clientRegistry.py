@@ -1,18 +1,16 @@
 """
-this file has three classes.  All the classes are related to tracking clients that are in range
+This file has three classes.  
+All the classes are related to tracking clients that are in range.
+
+ClientRegistry
+Holds registered clients
 
 RegistryEvent
-RegisteredClientRegistry
 RegistryEventHandler
 
 """
 
 from simplesensor.shared import ThreadsafeLogger
-from .btleRegisteredClient import BtleRegisteredClient
-import os
-import os.path
-import logging
-import logging.config
 import time
 
 class RegistryEvent(object):
@@ -82,11 +80,11 @@ class RegistryEventHandler(object):
     __isub__ = remove
     __call__ = fire
 
-class RegisteredClientRegistry(object):
-    eventRegisteredClientRemoved = RegistryEvent()
-    eventRegisteredClientAdded = RegistryEvent()
-    eventRegisteredClientUpdated = RegistryEvent()
-    eventSweepComplete = RegistryEvent()
+class ClientRegistry(object):
+    onClientRemoved = RegistryEvent()
+    onClientAdded = RegistryEvent()
+    onClientUpdated = RegistryEvent()
+    onSweepComplete = RegistryEvent()
 
     def __init__(self,collectionPointConfig,loggingQueue):
         # Logger
@@ -94,10 +92,24 @@ class RegisteredClientRegistry(object):
         self.logger = ThreadsafeLogger(loggingQueue, __name__)
 
         self.rClients = {}  #registered clients
-        self.collectionPointConfig = collectionPointConfig #collection point config
+        self.collectionPointConfig = collectionPointConfig
 
-    def getRegisteredClient(self,udid):
-        """Get an existing registered client by udid and if its found return it.  If no existing registered client is found return None."""
+    def getAll(self):
+        """
+        Get all registered clients as dicts
+        """
+        return {k: v.getExtendedDataForEvent() for k, v in self.rClients.items()}
+
+    def getUpdateData(self):
+        return {'nearby': self.getAll()}
+
+    def getClient(self,udid):
+        """
+        Get an existing registered client by udid 
+        and if its found return it. 
+        If no existing registered client is found 
+        return None.
+        """
         try:
             eClient = self.rClients[udid]
         except KeyError:
@@ -106,12 +118,19 @@ class RegisteredClientRegistry(object):
         return eClient
 
     def sweepOldClients(self):
-        """look at the registry and look for expired inactive clients.  Returns a list of removed clients"""
-        self.logger.debug("*** Sweeping clients existing count %s***"%len(self.rClients))
+        """
+        Look at the registry and look for expired
+        and inactive clients.  
+
+        Returns a list of removed clients.
+        """
+        self.logger.debug("*** Sweeping clients existing count" +
+            " %s***"%len(self.rClients))
 
         clientsToBeRemoved=[] #list of clients to be cleaned up
 
-        currentExpireTime = time.time() - (self.collectionPointConfig['AbandonedClientTimeout']/1000)
+        currentExpireTime = (time.time() -
+            (self.collectionPointConfig['AbandonedClientTimeout']/1000))
 
         for udid in self.rClients:
             regClient = self.rClients[udid]
@@ -123,23 +142,24 @@ class RegisteredClientRegistry(object):
             # self.logger.debug("Client sweep removing udid %s"%client.getUdid())
             self.removeRegisteredClient(client)
 
-        self.logger.debug("*** End of sweeping tags existing count %s***"%len(self.rClients))
+        self.logger.debug("*** End of sweeping tags existing count "+
+            "%s***"%len(self.rClients))
 
-        self.eventSweepComplete(clientsToBeRemoved)
+        self.onSweepComplete(clientsToBeRemoved)
 
         return clientsToBeRemoved
 
-    def addNewRegisteredClient(self,registeredClient):
-        #self.logger.debug("in addNewRegisteredClient with %s"%registeredClient.getUdid())
-        self.rClients[registeredClient.getUdid()] = registeredClient
-        self.eventRegisteredClientAdded(registeredClient)#throw event
+    def addClient(self,client):
+        #self.logger.debug("in addNewRegisteredClient with %s"%client.getUdid())
+        self.rClients[client.getUdid()] = client
+        self.onClientAdded(client)
 
-    def updateRegisteredClient(self,registeredClient):
-        #self.logger.debug("in updateRegisteredClient with %s"%registeredClient.getUdid())
-        self.rClients[registeredClient.getUdid()] = registeredClient
-        self.eventRegisteredClientUpdated(registeredClient)#throw event
+    def updateClient(self,client):
+        #self.logger.debug("in updateRegisteredClient with %s"%client.getUdid())
+        self.rClients[client.getUdid()] = client
+        self.onClientUpdated(client)
 
-    def removeRegisteredClient(self,registeredClient):
-        #self.logger.debug("in removeRegisteredClient with %s"%registeredClient.getUdid())
-        self.rClients.pop(registeredClient.getUdid())
-        self.eventRegisteredClientRemoved(registeredClient)#throw event
+    def removeClient(self,client):
+        #self.logger.debug("in removeRegisteredClient with %s"%client.getUdid())
+        self.rClients.pop(client.getUdid())
+        self.onClientRemoved(client)

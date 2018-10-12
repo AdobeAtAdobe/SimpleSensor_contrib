@@ -1,50 +1,66 @@
-import os 
-import os.path
-import logging
-import logging.config
 import time
 import json
 import requests
 import platform
 from threading import Thread
-from .btleThreadCollectionPoint import BtleThreadCollectionPoint
-from simplesensor.collection_modules.btle_beacon.detectedClient import DetectedClient
+# from multiprocessing import Process
+from . import BluegigaDevice
+from .. import DetectionData
 from simplesensor.shared import ThreadsafeLogger
 
-class BlueGigaBtleCollectionPointThread(Thread):
+# required callback keys
+_ON_SCAN = 'onScan'
 
-    def __init__(self, queue, btleConfig, loggingQueue, debugMode=False):
-        Thread.__init__(self)
+class DeviceThread(Thread):
+    """
+    Controller thread, manage the instance of BluegigaDevice.
+    """
+    def __init__(self, callbacks, btleConfig, loggingQueue, debugMode=False):
+        super().__init__()
         # Logger
         self.loggingQueue = loggingQueue
         self.logger = ThreadsafeLogger(loggingQueue, __name__)
         self.alive = True
+        self.callbacks = self.sanitizeCallbacks(callbacks)
         self.btleConfig = btleConfig
-        self.queue = queue
-        self.btleCollectionPoint = BtleThreadCollectionPoint(self.eventScanResponse,self.btleConfig,self.loggingQueue)
+        # self.queue = queue
+        self.device = BluegigaDevice(
+            self.scanCallback,
+            self.btleConfig,
+            self.loggingQueue)
 
-    def bleDetect(self,__name__,repeatcount=10):
+    def run(self):
+        """
+        Main thread entry point.
+        Repeatedly call scan() method on
+        device controller BluegigaDevice.
+
+        Send results or failures back to main
+        thread via callbacks.
+        """
         try:
-            self.btleCollectionPoint.start()
+            self.device.start()
         except Exception as e:
-            self.logger.error("[btleThread] Unable to connect to BTLE device: %s"%e)
+            self.logger.error("Unable to connect to BTLE device: %s"%e)
             self.sendFailureNotice("Unable to connect to BTLE device")
-            quit()
+            self.stop()
 
         while self.alive:
-            try:
-                self.btleCollectionPoint.scan()
-            except Exception as e:
-                self.logger.error("[btleThread] Unable to scan BTLE device: %s"%e)
-                self.sendFailureNotice("Unable to connect to BTLE device to perform a scan")
-                quit()
+            # try:
+            self.device.scan()
+            # except Exception as e:
+            #     self.logger.error("Unable to scan BTLE device: %s"%e)
+            #     self.sendFailureNotice("Unable to connect to BTLE device to perform a scan")
+            #     self.stop()
 
             # don't burden the CPU
             time.sleep(0.01)
 
-    # handler to print scan responses with a timestamp
-    def eventScanResponse(self,sender,args):
-
+    def scanCallback(self,sender,args):
+        """
+        Callback for the scan event on the device controller.
+        Prints the event in a formatted way for tuning purposes.
+        """
         #check to make sure there is enough data to be a beacon
         if len(args["data"]) > 15:
             try:
@@ -52,7 +68,6 @@ class BlueGigaBtleCollectionPointThread(Thread):
                 # self.logger.debug("majorNumber=%i"%majorNumber)
             except:
                 majorNumber = 0
-
             try:
                 minorNumber = args["data"][28] | (args["data"][27] << 8)
                 # self.logger.debug("minorNumber=%i"%minorNumber)
@@ -84,16 +99,36 @@ class BlueGigaBtleCollectionPointThread(Thread):
                     self.logger.debug("================================= eventScanResponse END =================================")
 
                 #package it up for sending to the queue
-                detectedClient = DetectedClient('btle',udid=udid,beaconMac=beaconMac,majorNumber=majorNumber,minorNumber=minorNumber,tx=txPower,rssi=rssi)
+                detectionData = DetectionData(
+                    'btle',
+                    udid=udid,
+                    beaconMac=beaconMac,
+                    majorNumber=majorNumber,
+                    minorNumber=minorNumber,
+                    tx=txPower,
+                    rssi=rssi)
                 
                 #put it on the queue for the event manager to pick up
-                self.queue.put(detectedClient)
+                self.callbacks[_ON_SCAN](detectionData)
+
+    def sanitizeCallbacks(self, cbs):
+        """
+        Make sure required callbacks are included and callable.
+        Return only the required callbacks.
+        """
+        assert(callable(cbs[_ON_SCAN]))
+        if len(cbs) > 1:
+            return [cbs[_ON_SCAN]]
+        return cbs
 
     def stop(self):
         self.alive = False
 
-    def sendFailureNotice(self,msg):
+    def sendFailureNotice(self, msg):
         if len(self.btleConfig['SlackChannelWebhookUrl']) > 10:
-            myMsg = 'Help I have fallen and can not get back up! \n %s. \nSent from %s'%(msg,platform.node())
+            myMsg = ("Help, I've fallen and can't get up! "+
+                "\n %s. \nSent from %s"%(msg,platform.node()))
             payload = {'text': myMsg}
-            r = requests.post(self.btleConfig['SlackChannelWebhookUrl'], data = json.dumps(payload))
+            r = requests.post(
+                self.btleConfig['SlackChannelWebhookUrl'], 
+                data = json.dumps(payload))

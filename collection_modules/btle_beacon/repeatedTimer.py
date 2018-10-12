@@ -1,7 +1,6 @@
 """
-Like the class name says its a repeated timer object
+RepeatedTimer
 """
-
 from threading import Timer 
 
 class RepeatedTimer(object):

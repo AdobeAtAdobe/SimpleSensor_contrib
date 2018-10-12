@@ -238,6 +238,30 @@ def loadModule(thisConfig, logger, configParser):
     logger.info("Btle client out count threshold : %s" % configValue)
     thisConfig['BtleClientOutCountThreshold'] = configValue
 
+    """ Send update messages"""
+    try:
+        configValue=configParser.getboolean('ModuleConfig','send_update_messages')
+    except:
+        configValue = False
+    logger.info("Send update messages : %s" % configValue)
+    thisConfig['SendUpdateMessages'] = configValue
+
+    """ Update messages frequency in times/second """
+    try:
+        configValue=configParser.getint('ModuleConfig','update_fps')
+    except:
+        configValue = 30
+    logger.info("Update message FPS : %s" % configValue)
+    thisConfig['UpdateFPS'] = configValue
+
+    """Btle client out count threshold"""
+    try:
+        configValue=configParser.getint('ModuleConfig','btle_client_out_count_threshold')
+    except:
+        configValue = 5
+    logger.info("Btle client out count threshold : %s" % configValue)
+    thisConfig['BtleClientOutCountThreshold'] = configValue
+
     """Slack channel webhook url"""
     try:
         configValue=configParser.get('ModuleConfig','slack_channel_webhook_url')

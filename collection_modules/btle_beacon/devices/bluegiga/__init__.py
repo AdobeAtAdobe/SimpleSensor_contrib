@@ -1,1 +1,2 @@
-from .btleThreadCollectionPoint import BtleThreadCollectionPoint
+from .bluegigaDevice import BluegigaDevice
+from .deviceThread import DeviceThread
