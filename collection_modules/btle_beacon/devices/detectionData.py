@@ -2,13 +2,13 @@
 Detection data
 The raw event from the device interface.
 """
-import time 
+from datetime import datetime 
 class DetectionData(object):
     def __init__(self,type,**kwargs):
         self.type=type
         if self.type == 'btle':
             self.udid=kwargs.get('udid','undefined')
-            self.createTime = time.time()
+            self.createTime = datetime.now()
             self.extraData = {}
             self.extraData['beaconMac'] = kwargs.get('beaconMac','undefined')
             self.extraData['majorNumber'] = kwargs.get('majorNumber',0)
