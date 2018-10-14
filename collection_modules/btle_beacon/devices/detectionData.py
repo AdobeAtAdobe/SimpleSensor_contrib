@@ -1,13 +1,14 @@
 """
-Detected client is the raw event from the device interface.
+Detection data
+The raw event from the device interface.
 """
-import time 
-class DetectedClient:
+from datetime import datetime 
+class DetectionData(object):
     def __init__(self,type,**kwargs):
         self.type=type
         if self.type == 'btle':
             self.udid=kwargs.get('udid','undefined')
-            self.createTime = time.time()
+            self.createTime = datetime.now()
             self.extraData = {}
             self.extraData['beaconMac'] = kwargs.get('beaconMac','undefined')
             self.extraData['majorNumber'] = kwargs.get('majorNumber',0)
@@ -17,4 +18,4 @@ class DetectedClient:
             self.extraData['rssi'] = kwargs.get('rssi',0)
 
     def __str__(self):
-        return "udid: {1} \n createTime: {2}".format(self.udid, self.createTime)
+        return "udid: {} \n createTime: {}".format(self.udid, self.createTime)

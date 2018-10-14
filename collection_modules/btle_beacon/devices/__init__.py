@@ -1,1 +1,1 @@
- 
+from .detectionData import DetectionData

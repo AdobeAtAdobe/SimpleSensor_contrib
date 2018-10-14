@@ -2,21 +2,23 @@
 # https://github.com/jrowberg/bglib/blob/master/Python/Examples/bled112_scanner.py
 #
 #
-from simplesensor.collection_modules.btle_beacon.libs import BGLib
+from .bglib import BGLib
 from simplesensor.shared import ThreadsafeLogger
-from pprint import pprint
 from serial import Serial
 import optparse
 
-class BtleThreadCollectionPoint(object):
+class BluegigaDevice(object):
+    """
+    BluegigaDevice controller/scanner.
+    """
 
-    def __init__(self,clientEventHandler,btleConfig,loggingQueue,debugMode=False):
+    def __init__(self,scanCallback,btleConfig,loggingQueue,debugMode=False):
         # Logger
         self.loggingQueue = loggingQueue
         self.logger = ThreadsafeLogger(loggingQueue, __name__)
 
         self.btleConfig = btleConfig
-        self.clientEventHandler = clientEventHandler
+        self.scanCallback = scanCallback
         self.debug = debugMode
         # define basic BGAPI parser
         self.bgapi_rx_buffer = []
@@ -37,11 +39,17 @@ class BtleThreadCollectionPoint(object):
         self.ble.on_busy = self.on_busy
 
         # add handler for the gap_scan_response event
-        self.ble.ble_evt_gap_scan_response += self.clientEventHandler
+        self.ble.ble_evt_gap_scan_response += self.scanCallback
 
         # create serial port object and flush buffers
-        self.logger.info("Establishing serial connection to BLED112 on com port %s at baud rate %s"%(self.btleConfig['BtleDeviceId'],self.btleConfig['BtleDeviceBaudRate']))
-        self.serial = Serial(port=self.btleConfig['BtleDeviceId'], baudrate=self.btleConfig['BtleDeviceBaudRate'], timeout=1)
+        self.logger.info("Establishing serial connection to "+
+            "BLED112 on com port %s at baud rate %s"%(
+                self.btleConfig['BtleDeviceId'],
+                self.btleConfig['BtleDeviceBaudRate']))
+        self.serial = Serial(
+            port=self.btleConfig['BtleDeviceId'], 
+            baudrate=self.btleConfig['BtleDeviceBaudRate'], 
+            timeout=1)
         self.serial.flushInput()
         self.serial.flushOutput()
 
@@ -67,7 +75,9 @@ class BtleThreadCollectionPoint(object):
         #interval_man 6-3200
         #latency 0-500
         #timeout 10-3200
-        self.ble.send_command(self.serial, self.ble.ble_cmd_connection_update(0x00,0x001e,0x002e,0x0000,0x0064))
+        self.ble.send_command(
+            self.serial, 
+            self.ble.ble_cmd_connection_update(0x00,0x001e,0x002e,0x0000,0x0064))
         self.ble.check_activity(self.serial, 1)
 
         # set scan parameters
@@ -98,7 +108,9 @@ class BtleThreadCollectionPoint(object):
         # read the scan response data.
         # 0: Passive scanning is used. No scan request is made.
         #self.ble.send_command(self.serial, self.ble.ble_cmd_gap_set_scan_parameters(0x4B,0x32,1))
-        self.ble.send_command(self.serial, self.ble.ble_cmd_gap_set_scan_parameters(0xC8,0xC8,0))
+        self.ble.send_command(
+            self.serial, 
+            self.ble.ble_cmd_gap_set_scan_parameters(0xC8,0xC8,0))
         self.ble.check_activity(self.serial, 1)
 
         # start scanning now

@@ -1,80 +1,89 @@
 """
-BTLE iBeacon collection module
-WIP 
-
-RegisteredClientRegistery manages the list of clients that are in rage
-event manager controllers and handles events and figures out if the event needs to be handled and put in the list of registered clients
+BTLE iBeacon module
+Main collection point
 """
 
-import sys
-sys.path.append('./collection_modules/btleCollectionPoint/devices/bluegiga')
-sys.path.append('./collection_modules/btleCollectionPoint/libs')
-from simplesensor.collection_modules.btle_beacon import moduleConfigLoader as configLoader
-from devices.bluegiga.btleThread import BlueGigaBtleCollectionPointThread
-from .registeredClientRegistry import RegisteredClientRegistry
+from . import moduleConfigLoader as configLoader
+from .devices.bluegiga import DeviceThread as BlueGigaDeviceThread
+from .registry import ClientRegistry
 from simplesensor.shared import ThreadsafeLogger, ModuleProcess
 from .repeatedTimer import RepeatedTimer
 from .eventManager import EventManager
 from threading import Thread
+from datetime import datetime
 import multiprocessing as mp
 import time
 
-class BtleCollectionPoint(ModuleProcess):
+_ON_SCAN = 'onScan'
+
+class BtleCollectionPoint(Thread):
 
     def __init__(self, baseConfig, pInBoundQueue, pOutBoundQueue, loggingQueue):
         """ Initialize new CamCollectionPoint instance.
         Setup queues, variables, configs, constants and loggers.
         """
-        super(BtleCollectionPoint, self).__init__()
+        super().__init__()
+        # super().__init__(baseConfig, pInBoundQueue, pOutBoundQueue, loggingQueue)
         self.loggingQueue = loggingQueue
         self.logger = ThreadsafeLogger(loggingQueue, __name__)
 
          # Queues
         self.outQueue = pOutBoundQueue # Messages from this thread to the main process
         self.inQueue = pInBoundQueue
-        self.queueBLE = mp.Queue()
 
         # Configs
-        self.moduleConfig = configLoader.load(self.loggingQueue)
+        self.moduleConfig = configLoader.load(self.loggingQueue, __name__)
         self.config = baseConfig
 
         # Variables and objects
-        self.registeredClientRegistry = RegisteredClientRegistry(self.moduleConfig, self.loggingQueue)
-        self.eventManager = EventManager(self.moduleConfig, pOutBoundQueue, self.registeredClientRegistry, self.loggingQueue)
         self.alive = True
+        self.callbacks = {
+            _ON_SCAN: self.handleBtleClientEvent
+        }
+        self.clientRegistry = ClientRegistry(
+            self.moduleConfig, 
+            self.loggingQueue)
+
+        self.eventManager = EventManager(
+            self.moduleConfig, 
+            pOutBoundQueue, 
+            self.clientRegistry, 
+            self.loggingQueue)
+
+        # Threads
         self.btleThread = None
-        self.BLEThread = None
         self.repeatTimerSweepClients = None
+
+        self.lastUpdate = datetime.now()
 
         # Constants
         self._cleanupInterval = self.moduleConfig['AbandonedClientCleanupInterval']
 
     def run(self):
-        ###Pausing Startup to wait for things to start after a system restart
-        self.logger.info("Pausing execution 15 seconds waiting for other system services to start")
+        """
+        Main thread entrypoint.
+        Sets up and starts the DeviceThread.
+        Loops repeatedly reading incoming messages.
+        """
+        # Pause for a bit to let things bootup on host machine
+        self.logger.info("Pausing execution 15 seconds" +
+            " waiting for other system services to start")
         time.sleep(15)
-        self.logger.info("Done with our nap.  Time to start looking for clients")
+        self.logger.info("Done with our nap. " + 
+            "Time to start looking for clients")
 
-        self.btleThread = BlueGigaBtleCollectionPointThread(self.queueBLE, self.moduleConfig, self.loggingQueue)
-        self.BLEThread = Thread(target=self.btleThread.bleDetect, args=(__name__,10))
-        self.BLEThread.daemon = True
-        self.BLEThread.start()
+        # Start device thread, handles IO
+        self.deviceThread = BlueGigaDeviceThread(
+            self.callbacks, 
+            self.moduleConfig, 
+            self.loggingQueue)
+        self.deviceThread.start()
 
         # Setup repeat task to run the sweep every X interval
-        self.repeatTimerSweepClients = RepeatedTimer((self._cleanupInterval/1000), self.registeredClientRegistry.sweepOldClients)
+        self.repeatTimerSweepClients = RepeatedTimer(
+            (self._cleanupInterval/1000), 
+            self.clientRegistry.sweepOldClients)
 
-        # Process queue from main thread for shutdown messages
-        self.threadProcessQueue = Thread(target=self.processQueue)
-        self.threadProcessQueue.setDaemon(True)
-        self.threadProcessQueue.start()
-
-        #read the queue
-        while self.alive:
-            if not self.queueBLE.empty():
-                result = self.queueBLE.get(block=False, timeout=1)
-                self.__handleBtleClientEvents(result)
-
-    def processQueue(self):
         self.logger.info("Starting to watch collection point inbound message queue")
         while self.alive:
             if not self.inQueue.empty():
@@ -92,23 +101,36 @@ class BtleCollectionPoint(ModuleProcess):
                     self.shutdown()
                 self.logger.info("Queue size is %s after" % self.inQueue.qsize())
             else:
-                time.sleep(.25)
+                time.sleep(.45)
 
-    def __handleBtleClientEvents(self, detectedClients):
-        for client in detectedClients:
-            self.logger.debug("--- Found client ---")
-            self.logger.debug(vars(client))
-            self.logger.debug("--- Found client end ---")
-            self.eventManager.registerDetectedClient(client)
+    def handleBtleClientEvent(self, detectedClient):
+        self.eventManager.registerDetectedClient(detectedClient)
 
     def handleMessage(self, msg):
         # Handle incoming messages, eg. from other collection points
         pass
 
+    def killProcess(self, proc, timeout=1):
+        """
+        Kill a process, given a timeout to join.
+        """
+        self.logger.info('Joining process: %s'%proc)
+        proc.join()
+        p_sec = 0
+        for second in range(timeout):
+            if proc.is_alive():
+                time.sleep(1)
+                p_sec += 1
+        if p_sec >= timeout:
+            self.logger.info('Terminating process: %s'%proc)
+            proc.terminate()
+
     def shutdown(self):
         self.logger.info("Shutting down")
         self.repeatTimerSweepClients.stop()
-        self.btleThread.stop()
+        self.eventManager.stop()
+        self.deviceThread.stop()
+        # self.killProcess(self.deviceThread)
         self.alive = False
         time.sleep(1)
         self.exit = True
