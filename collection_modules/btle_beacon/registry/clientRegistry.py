@@ -12,6 +12,7 @@ RegistryEventHandler
 
 from simplesensor.shared import ThreadsafeLogger
 import time
+from datetime import datetime
 
 class RegistryEvent(object):
 
@@ -129,18 +130,19 @@ class ClientRegistry(object):
 
         clientsToBeRemoved=[] #list of clients to be cleaned up
 
-        currentExpireTime = (time.time() -
-            (self.collectionPointConfig['AbandonedClientTimeout']/1000))
+        clientTimeout = self.collectionPointConfig['AbandonedClientTimeout']
+        now = datetime.now()
 
         for mac in self.rClients:
             regClient = self.rClients[mac]
 
-            if regClient.lastRegisteredTime < currentExpireTime:
+            # print('now-regClient.lastRegisteredTime ---- clientTimeout <0 : ',(now-regClient.lastRegisteredTime).total_seconds()*1000, clientTimeout)
+            if (now-regClient.lastRegisteredTime).total_seconds()*1000-clientTimeout<0:
                 clientsToBeRemoved.append(regClient)
 
         for client in clientsToBeRemoved:
             # self.logger.debug("Client sweep removing mac %s"%client.getMac())
-            self.removeRegisteredClient(client)
+            self.removeClient(client)
 
         self.logger.debug("*** End of sweeping tags existing count "+
             "%s***"%len(self.rClients))

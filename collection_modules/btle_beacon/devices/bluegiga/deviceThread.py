@@ -85,7 +85,7 @@ class DeviceThread(Thread):
                 else:
                     txPower = rawTxPower - 256
 
-                if self.btleConfig['BtleTestMode']:
+                if self.btleConfig['BtleTestMode'] or True:
                     self.logger.debug("=============================== eventScanResponse START ===============================")
                     #self.logger.debug("self.btleConfig['BtleAdvertisingMinor'] == %i and self.btleConfig['BtleAdvertisingMinor'] == %i "%(majorNumber,minorNumber))
                     #self.logger.debug("yep, we care about this major and minor so lets create a detected client and pass it to the event manager")
