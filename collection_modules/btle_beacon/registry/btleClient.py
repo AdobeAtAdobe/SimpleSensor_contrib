@@ -141,7 +141,7 @@ class BtleClient(object):
             # if so we dont need to throw another on sweep
             if self.prevClientOutMsgTime:
                 #was there a in event sent after the last out?
-                if self.prevClientInMsgTime > self.prevClientOutMsgTime:
+                if (self.prevClientInMsgTime == None or self.prevClientInMsgTime > self.prevClientOutMsgTime):
                     self.logClientEventSend("Sweep case a is sending ClientOUT on")
                     self.zeroEventRangeCounters()
                     return True
@@ -174,6 +174,7 @@ class BtleClient(object):
             self.logger.debug("%%%%%%%%%%%%%%%%%% %s %%%%%%%%%%%%%%%%%%" %message)
             self.logger.debug("    MAC is %s " %self.getMac())
             self.logger.debug("    Beacon ID is %s " %self.beaconId)
+            self.logger.debug("    filtered RSSI %i" %self.filter.state)
             self.logger.debug("    RSSI %i" %self.detectionData.extraData['rssi'])
             self.logger.debug("    Major %i" %self.detectionData.extraData['majorNumber'])
             self.logger.debug("    Minor %i" %self.detectionData.extraData['minorNumber'])
