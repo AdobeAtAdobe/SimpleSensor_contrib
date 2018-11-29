@@ -11,9 +11,13 @@ from threading import Thread
 import time 
 import json
 import struct
+import math
+import base64
+from decimal import Decimal
 import datetime
+import nfc.ndef
 from smartcard.scard import *
-import smartcard.util
+from smartcard.util import toHexString
 
 _HEADER_SIZE = 6
 
@@ -87,25 +91,76 @@ class CollectionModule(ModuleProcess):
             if card is None: 
                 continue
 
-            # get block #10 and 11 of card,
-            # contains the attendee ID
-            msg = [0xFF, 0xB0, 0x00, bytes([10])[0], 0x04]
-            chunk_one = self.send_transmission(card, msg)
-            if chunk_one is None:
-                self.reader = None
-                continue
-            msg = [0xFF, 0xB0, 0x00, bytes([11])[0], 0x04]
-            chunk_two = self.send_transmission(card, msg)
-            if chunk_two is None:
-                self.reader = None
+            cc_block_msg = [0xFF, 0xB0, 0x00, bytes([3])[0], 0x04]
+            cc_block = self.send_transmission(card, cc_block_msg)
+            if (cc_block[0] != 225): # magic number 0xE1 means data to be read
                 continue
 
-            # the id is in B1-3 of block 10
-            # and B0-2 of block 11
-            attendee_id_bytes = bytearray(chunk_one[1:4]+chunk_two[0:3])
-            attendee_id = attendee_id_bytes.decode('UTF-8')
+            data_size = cc_block[2]*8/4 # CC[2]*8 is data area size in bytes (/4 for blocks)
+            messages = []
+            data= []
+            m_ptr = 4 # pointer to actual card memory location
+            terminate = False
+            while(m_ptr <= data_size+4):
+                msg = None
+                if m_ptr > 255:
+                    byte_one = math.floor(m_ptr/256)
+                    byte_two = m_ptr%(byte_one*256)
+                    msg = [0xFF, 0xB0, bytes([byte_one])[0], bytes([byte_two])[0], 0x01]
+                else:
+                    msg = [0xFF, 0xB0, 0x00, bytes([m_ptr])[0], 0x01]
+
+                block = self.send_transmission(card, msg)
+                # decode TLV header
+                tag, length = self.parse_TLV_header(block)
+                if tag == 'TERMINATOR':
+                    terminate = True
+                # now read the block of data into a record
+                m_ptr += 1
+                data = []
+                for i in range(int(length/4)): # working with blocks
+                    msg = None
+                    if m_ptr > 255:
+                        byte_one = math.floor(m_ptr/256)
+                        byte_two = m_ptr%(byte_one*256)
+                        msg = [0xFF, 0xB0, bytes([byte_one])[0], bytes([byte_two])[0], 0x04]
+                    else:
+                        msg = [0xFF, 0xB0, 0x00, bytes([m_ptr])[0], 0x04]
+                    block = self.send_transmission(card, msg)
+                    data += block
+                    m_ptr += 1
+
+                if tag == 'NDEF':
+                    ndef_msg = self.parse_NDEF_msg(data)
+                    messages.append(ndef_msg)
+
+                if terminate:
+                    break
+
+            attendee_id = None
+            event_id = None
+            salutation = None
+            first_name = None 
+            last_name = None
+            middle_name = None
+            _TYPE = 0
+            _ID = 1
+            _PAYLOAD = 2
+            for message in messages:
+                for record in message:
+                    if record[_TYPE] == 'bcard.net:bcard' and len(record[_PAYLOAD])>40: # to avoid bcard url payloads
+                        try:
+                            (attendee_id, event_id, salutation, first_name, 
+                                last_name, middle_name) = self.decode_bcard_payload(record[_PAYLOAD])
+                        except Exception as e:
+                            self.logger.error("Error decoding BCARD payload: {}".format(e))
             xdata = {
-                'attendee_id': attendee_id
+                'attendee_id': attendee_id,
+                'event_id': event_id,
+                'salutation': salutation,
+                'first_name': first_name,
+                'last_name': last_name,
+                'middle_name': middle_name
             }
             msg = self.build_message(topic='scan_in', extendedData=xdata)
             self.logger.info('Sending message: {}'.format(msg))
@@ -115,6 +170,94 @@ class CollectionModule(ModuleProcess):
 
             # sleep for a bit to avoid double scanning
             time.sleep(5)
+
+    def parse_TLV_header(self, barr):
+        # return (tag, length (in bytes), [value] (if length != 0x00))
+        tag = None
+        length = None
+        if barr[0] == 0x00: tag = 'NULL'
+        if barr[0] == 0x03: tag = 'NDEF'
+        if barr[0] == 0xFD: tag = 'PROPRIETARY'
+        if barr[0] == 0xFE: tag = 'TERMINATOR'
+
+        if barr[1] != 0xFF: print('NOT USING 3 BYTE FORMAT')
+        length = struct.unpack('>h', bytes(barr[2:4]))[0]
+
+        return tag, length
+
+    def parse_NDEF_header(self, barr):
+        # parse ndef header
+        # return  TNF(type name format), ID_LEN (ID length), 
+        #         SR (short record bit), CF (chunk flag),
+        #         ME (message end), MB (message begin), 
+
+        #         TYPE_LEN (type length), PAY_LEN (payload length),
+        #         ID (record type indicator)
+        TNF = (0b00000111&barr[0])
+        ID_LEN = (0b00001000&barr[0])>>3
+        SR = (0b00010000&barr[0])>>4
+        CF = (0b00100000&barr[0])>>5
+        ME = (0b01000000&barr[0])>>6
+        MB = (0b10000000&barr[0])>>7
+
+        TYPE_LEN = barr[1]
+        PAY_LEN = struct.unpack('>I', bytes(barr[2:6]))[0]
+        PAY_TYPE = None
+        if TYPE_LEN > 0:
+            PAY_TYPE = bytearray(barr[6:6+TYPE_LEN]).decode('UTF-8')
+        REC_ID = None
+        if ID_LEN > 0:
+            REC_ID = barr[6+TYPE_LEN:6+TYPE_LEN+ID_LEN]
+
+        return (TNF, ID_LEN, SR, CF, ME, MB, TYPE_LEN, PAY_LEN, PAY_TYPE, REC_ID)
+
+    def parse_NDEF_msg(self, data):
+        # iterate through the message bytes, reading ndef messages
+        itr = 0
+        records = []
+        while itr < len(data):
+            # get header first
+            try:
+                (TNF, ID_LEN, SR, CF, ME, MB, TYPE_LEN, PAY_LEN, 
+                    PAY_TYPE, REC_ID) = self.parse_NDEF_header(data)
+                itr += 6 + ID_LEN + TYPE_LEN
+
+                rec_payload = data[itr:itr+PAY_LEN]
+                itr += PAY_LEN
+
+                record = [PAY_TYPE, REC_ID, rec_payload] # type, id, payload
+                records.append(record)
+            except Exception as e:
+                self.logger.error('Error parsing NDEF message: {}'.format(e))
+        return records
+
+    def decode_bcard_payload(self, payload):
+        # loop through decoding segments
+        # each field separated by 0x1E
+        # 6 fields: 
+        fields = {
+            'attendee_id': '', 
+            'event_id': '', 
+            'salutation': '', 
+            'first_name': '',
+            'last_name': '', 
+            'middle_name': ''
+        }
+        field = 0
+        for b in payload:
+            try:
+                if field == 0 and b == 30:
+                    field += 1
+                    continue
+                elif b==31:
+                    field += 1
+                    if field >= len(list(fields.keys())): 
+                        break
+                    continue
+                fields[list(fields.keys())[field]] += bytearray([b]).decode('UTF8')
+            except:
+                pass
+        return tuple(fields.values())
 
     def establish_context(self):
         hresult, hcontext = SCardEstablishContext(SCARD_SCOPE_USER)
@@ -139,6 +282,11 @@ class CollectionModule(ModuleProcess):
             return
         else:
             return readers[self._port]
+
+    def get_atr(self):
+        print('get_atr')
+        # connection = self.reader.createConnection()
+        print(self.reader, toHexString(self.reader.getATR()))
 
     def get_card(self, mode=None, protocol=None):
         hresult, hcard, dwActiveProtocol = SCardConnect(
@@ -201,6 +349,7 @@ class CollectionModule(ModuleProcess):
         """
         Put message onto outgoing queue.
         """
+        print('putting message: ', msg)
         self.outQueue.put(msg)
 
     def process_queue(self):
