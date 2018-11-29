@@ -12,14 +12,8 @@ import time
 import json
 import struct
 import math
-import base64
-from decimal import Decimal
 import datetime
-import nfc.ndef
 from smartcard.scard import *
-from smartcard.util import toHexString
-
-_HEADER_SIZE = 6
 
 class CollectionModule(ModuleProcess):
 
@@ -282,11 +276,6 @@ class CollectionModule(ModuleProcess):
             return
         else:
             return readers[self._port]
-
-    def get_atr(self):
-        print('get_atr')
-        # connection = self.reader.createConnection()
-        print(self.reader, toHexString(self.reader.getATR()))
 
     def get_card(self, mode=None, protocol=None):
         hresult, hcard, dwActiveProtocol = SCardConnect(
