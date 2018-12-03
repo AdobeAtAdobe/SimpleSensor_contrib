@@ -73,7 +73,7 @@ class CollectionModule(ModuleProcess):
             self.establish_context()
 
         while self.alive:
-            while self.reader == None:
+            while self.reader is None:
                 self.reader = self.get_reader()
                 if self.reader is None:
                     self.logger.info('Waiting for 5 seconds before '
@@ -85,52 +85,80 @@ class CollectionModule(ModuleProcess):
             if card is None: 
                 continue
 
-            cc_block_msg = [0xFF, 0xB0, 0x00, bytes([3])[0], 0x04]
-            cc_block = self.send_transmission(card, cc_block_msg)
-            if (cc_block[0] != 225): # magic number 0xE1 means data to be read
-                continue
+            try:
+                cc_block_msg = [0xFF, 0xB0, 0x00, bytes([3])[0], 0x04]
+                try:
+                    cc_block = self.send_transmission(card, cc_block_msg)
+                except Exception as e:
+                    self.reader = None
+                    continue
 
-            data_size = cc_block[2]*8/4 # CC[2]*8 is data area size in bytes (/4 for blocks)
-            messages = []
-            data= []
-            m_ptr = 4 # pointer to actual card memory location
-            terminate = False
-            while(m_ptr <= data_size+4):
-                msg = None
-                if m_ptr > 255:
-                    byte_one = math.floor(m_ptr/256)
-                    byte_two = m_ptr%(byte_one*256)
-                    msg = [0xFF, 0xB0, bytes([byte_one])[0], bytes([byte_two])[0], 0x01]
-                else:
-                    msg = [0xFF, 0xB0, 0x00, bytes([m_ptr])[0], 0x01]
+                if (cc_block is None or cc_block[0] != 225): # magic number 0xE1 means data to be read
+                    self.reader = None
+                    continue
 
-                block = self.send_transmission(card, msg)
-                # decode TLV header
-                tag, length = self.parse_TLV_header(block)
-                if tag == 'TERMINATOR':
-                    terminate = True
-                # now read the block of data into a record
-                m_ptr += 1
-                data = []
-                for i in range(int(length/4)): # working with blocks
+                data_size = cc_block[2]*8/4 # CC[2]*8 is data area size in bytes (/4 for blocks)
+                messages = []
+                data= []
+                m_ptr = 4 # pointer to actual card memory location
+                terminate = False
+                errd = False
+                while(m_ptr <= data_size+4 and not errd):
                     msg = None
                     if m_ptr > 255:
                         byte_one = math.floor(m_ptr/256)
                         byte_two = m_ptr%(byte_one*256)
-                        msg = [0xFF, 0xB0, bytes([byte_one])[0], bytes([byte_two])[0], 0x04]
+                        msg = [0xFF, 0xB0, bytes([byte_one])[0], bytes([byte_two])[0], 0x01]
                     else:
-                        msg = [0xFF, 0xB0, 0x00, bytes([m_ptr])[0], 0x04]
-                    block = self.send_transmission(card, msg)
-                    data += block
+                        msg = [0xFF, 0xB0, 0x00, bytes([m_ptr])[0], 0x01]
+
+                    try:
+                        block = self.send_transmission(card, msg)
+                    except RuntimeError as e:
+                        self.logger.error("Error, empty block, reset reader 2")
+                        self.reader = None
+                        errd = True
+                        break
+
+                    # decode TLV header
+                    tag, length = self.parse_TLV_header(block)
+                    if tag == 'TERMINATOR':
+                        terminate = True
+                    # now read the block of data into a record
                     m_ptr += 1
+                    data = []
+                    for i in range(int(length/4)): # working with blocks
+                        if errd:
+                            break
+                        msg = None
+                        if m_ptr > 255:
+                            byte_one = math.floor(m_ptr/256)
+                            byte_two = m_ptr%(byte_one*256)
+                            msg = [0xFF, 0xB0, bytes([byte_one])[0], bytes([byte_two])[0], 0x04]
+                        else:
+                            msg = [0xFF, 0xB0, 0x00, bytes([m_ptr])[0], 0x04]
+                        try:
+                            block = self.send_transmission(card, msg)
+                        except RuntimeError as e:
+                            self.logger.error("Error, empty block, reset reader 3")
+                            self.reader = None
+                            errd = True
+                            break
+                        data += block
+                        m_ptr += 1
 
-                if tag == 'NDEF':
-                    ndef_msg = self.parse_NDEF_msg(data)
-                    messages.append(ndef_msg)
+                    if tag == 'NDEF':
+                        ndef_msg = self.parse_NDEF_msg(data)
+                        messages.append(ndef_msg)
 
-                if terminate:
-                    break
+                    if terminate:
+                        break
 
+            except Exception as e:
+                self.logger.error("Error, probably lost card connection: {}".format(e))
+                self.reader = None
+                continue
+            self.logger.info('after ex')
             attendee_id = None
             event_id = None
             salutation = None
@@ -297,7 +325,7 @@ class CollectionModule(ModuleProcess):
             self.logger.error(
                 'Failed to send transmission: {}'.format(
                     SCardGetErrorMessage(hresult)))
-            return
+            raise RuntimeError("Error sending transmission: {}".format(SCardGetErrorMessage(hresult)))
         else:
             return response[:-2]
 
