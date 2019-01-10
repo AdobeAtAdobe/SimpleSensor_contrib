@@ -23,6 +23,21 @@ class DeviceThread(Thread):
         self.alive = True
         self.callbacks = self.sanitizeCallbacks(callbacks)
         self.btleConfig = btleConfig
+
+        # consts
+        self._majorMin = self.btleConfig['BtleAdvertisingMajorMin']
+        self._majorMax = self.btleConfig['BtleAdvertisingMajorMax']
+        self._minorMin = self.btleConfig['BtleAdvertisingMinorMin']
+        self._minorMax = self.btleConfig['BtleAdvertisingMinorMax']
+        self._uuidFocusList = self.btleConfig['BtleUuidFocusList']
+
+        if ('any' in self._uuidFocusList or 
+            'all' in self._uuidFocusList or
+            len(self._uuidFocusList)==0):
+            self.filterOnUuid = False
+        else:
+            self.filterOnUuid = True
+
         # self.queue = queue
         self.device = BluegigaDevice(
             self.scanCallback,
@@ -74,42 +89,56 @@ class DeviceThread(Thread):
             except:
                 minorNumber = 0
 
-            if (self.btleConfig['BtleAdvertisingMajorMin'] <= majorNumber <= self.btleConfig['BtleAdvertisingMajorMax']) and (self.btleConfig['BtleAdvertisingMinorMin'] <= minorNumber <= self.btleConfig['BtleAdvertisingMinorMax']):
+            try:
                 udid = "%s" % ''.join(['%02X' % b for b in args["data"][9:25]])
-                rssi = args["rssi"]
-                beaconMac = "%s" % ''.join(['%02X' % b for b in args["sender"][::-1]])
+            except:
+                pass
+
+            if (self.filterOnUuid and udid not in self._uuidFocusList):
+                return
+
+            if (not (self._majorMin <= majorNumber <= self._majorMax) or 
+                not (self._minorMin <= minorNumber <= self._minorMax)):
+                    return
+
+            rssi = args["rssi"]
+            beaconMac = "%s" % ''.join(['%02X' % b for b in args["sender"][::-1]])
+
+            if len(args["data"]) > 29:
                 rawTxPower = args["data"][29]
+            else:
+                rawTxPower = 0
 
-                if rawTxPower <= 127:
-                    txPower = rawTxPower
-                else:
-                    txPower = rawTxPower - 256
+            if rawTxPower <= 127:
+                txPower = rawTxPower
+            else:
+                txPower = rawTxPower - 256
 
-                if self.btleConfig['BtleTestMode']:
-                    self.logger.debug("=============================== eventScanResponse START ===============================")
-                    #self.logger.debug("self.btleConfig['BtleAdvertisingMinor'] == %i and self.btleConfig['BtleAdvertisingMinor'] == %i "%(majorNumber,minorNumber))
-                    #self.logger.debug("yep, we care about this major and minor so lets create a detected client and pass it to the event manager")
-                    self.logger.debug("Major=%s"%majorNumber)
-                    self.logger.debug("Minor=%s"%minorNumber)
-                    self.logger.debug("UDID=%s"%udid)
-                    self.logger.debug("rssi=%s"%rssi)
-                    self.logger.debug("beaconMac=%s"%beaconMac)
-                    self.logger.debug("txPower=%i"%txPower)
-                    self.logger.debug("rawTxPower=%i"%rawTxPower)
-                    self.logger.debug("================================= eventScanResponse END =================================")
+            if self.btleConfig['BtleTestMode']:
+                self.logger.debug("=============================== eventScanResponse START ===============================")
+                #self.logger.debug("self.btleConfig['BtleAdvertisingMinor'] == %i and self.btleConfig['BtleAdvertisingMinor'] == %i "%(majorNumber,minorNumber))
+                #self.logger.debug("yep, we care about this major and minor so lets create a detected client and pass it to the event manager")
+                self.logger.debug("Major=%s"%majorNumber)
+                self.logger.debug("Minor=%s"%minorNumber)
+                self.logger.debug("UDID=%s"%udid)
+                self.logger.debug("rssi=%s"%rssi)
+                self.logger.debug("beaconMac=%s"%beaconMac)
+                self.logger.debug("txPower=%i"%txPower)
+                self.logger.debug("rawTxPower=%i"%rawTxPower)
+                self.logger.debug("================================= eventScanResponse END =================================")
 
-                #package it up for sending to the queue
-                detectionData = DetectionData(
-                    'btle',
-                    udid=udid,
-                    beaconMac=beaconMac,
-                    majorNumber=majorNumber,
-                    minorNumber=minorNumber,
-                    tx=txPower,
-                    rssi=rssi)
-                
-                #put it on the queue for the event manager to pick up
-                self.callbacks[_ON_SCAN](detectionData)
+            #package it up for sending to the queue
+            detectionData = DetectionData(
+                'btle',
+                udid=udid,
+                beaconMac=beaconMac,
+                majorNumber=majorNumber,
+                minorNumber=minorNumber,
+                tx=txPower,
+                rssi=rssi)
+            
+            #put it on the queue for the event manager to pick up
+            self.callbacks[_ON_SCAN](detectionData)
 
     def sanitizeCallbacks(self, cbs):
         """
