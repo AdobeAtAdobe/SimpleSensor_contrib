@@ -14,6 +14,7 @@ import struct
 import math
 import datetime
 from smartcard.scard import *
+import nfc.ndef
 
 class CollectionModule(ModuleProcess):
 
@@ -74,6 +75,7 @@ class CollectionModule(ModuleProcess):
 
         while self.alive:
             while self.reader is None:
+                print('.')
                 self.reader = self.get_reader()
                 if self.reader is None:
                     self.logger.info('Waiting for 5 seconds before '
@@ -82,83 +84,87 @@ class CollectionModule(ModuleProcess):
 
             # connect to card
             card = self.get_card()
-            if card is None: 
+            if card is None or self.reader is None: 
                 continue
 
+            # try:
+            cc_block_msg = [0xFF, 0xB0, 0x00, bytes([3])[0], 0x04]
             try:
-                cc_block_msg = [0xFF, 0xB0, 0x00, bytes([3])[0], 0x04]
+                cc_block = self.send_transmission(card, cc_block_msg)
+            except Exception as e:
+                self.reader = None
+                continue
+
+
+            if (cc_block is None or cc_block[0] != 225): # magic number 0xE1 means data to be read
+                self.reader = None
+                continue
+
+            data_size = cc_block[2]*8/4 # CC[2]*8 is data area size in bytes (/4 for blocks)
+            messages = []
+            data= []
+            m_ptr = 4 # pointer to actual card memory location
+            terminate = False
+            errd = False
+            while(m_ptr <= data_size+4 and not errd):
+                msg = None
+                if m_ptr > 255:
+                    byte_one = math.floor(m_ptr/256)
+                    byte_two = m_ptr%(byte_one*256)
+                    msg = [0xFF, 0xB0, bytes([byte_one])[0], bytes([byte_two])[0], 0x01]
+                else:
+                    msg = [0xFF, 0xB0, 0x00, bytes([m_ptr])[0], 0x01]
+
                 try:
-                    cc_block = self.send_transmission(card, cc_block_msg)
-                except Exception as e:
+                    block = self.send_transmission(card, msg)
+                except RuntimeError as e:
+                    self.logger.error("Error, empty block, reset reader 2")
                     self.reader = None
-                    continue
+                    errd = True
+                    break
 
-                if (cc_block is None or cc_block[0] != 225): # magic number 0xE1 means data to be read
-                    self.reader = None
-                    continue
-
-                data_size = cc_block[2]*8/4 # CC[2]*8 is data area size in bytes (/4 for blocks)
-                messages = []
-                data= []
-                m_ptr = 4 # pointer to actual card memory location
-                terminate = False
-                errd = False
-                while(m_ptr <= data_size+4 and not errd):
+                # decode TLV header
+                tag, length, f_rem = self.parse_TLV_header(block)
+                if length != 255:
+                    m_ptr -= 1
+                if tag == 'TERMINATOR':
+                    terminate = True
+                # now read the block of data into a record
+                m_ptr += 1
+                data = []
+                for i in range(int(length/4)): # working with blocks
+                    if errd:
+                        break
                     msg = None
                     if m_ptr > 255:
                         byte_one = math.floor(m_ptr/256)
                         byte_two = m_ptr%(byte_one*256)
-                        msg = [0xFF, 0xB0, bytes([byte_one])[0], bytes([byte_two])[0], 0x01]
+                        msg = [0xFF, 0xB0, bytes([byte_one])[0], bytes([byte_two])[0], 0x04]
                     else:
-                        msg = [0xFF, 0xB0, 0x00, bytes([m_ptr])[0], 0x01]
-
+                        msg = [0xFF, 0xB0, 0x00, bytes([m_ptr])[0], 0x04]
                     try:
                         block = self.send_transmission(card, msg)
                     except RuntimeError as e:
-                        self.logger.error("Error, empty block, reset reader 2")
+                        self.logger.error("Error, empty block, reset reader 3")
                         self.reader = None
                         errd = True
                         break
-
-                    # decode TLV header
-                    tag, length = self.parse_TLV_header(block)
-                    if tag == 'TERMINATOR':
-                        terminate = True
-                    # now read the block of data into a record
+                    data += block
                     m_ptr += 1
-                    data = []
-                    for i in range(int(length/4)): # working with blocks
-                        if errd:
-                            break
-                        msg = None
-                        if m_ptr > 255:
-                            byte_one = math.floor(m_ptr/256)
-                            byte_two = m_ptr%(byte_one*256)
-                            msg = [0xFF, 0xB0, bytes([byte_one])[0], bytes([byte_two])[0], 0x04]
-                        else:
-                            msg = [0xFF, 0xB0, 0x00, bytes([m_ptr])[0], 0x04]
-                        try:
-                            block = self.send_transmission(card, msg)
-                        except RuntimeError as e:
-                            self.logger.error("Error, empty block, reset reader 3")
-                            self.reader = None
-                            errd = True
-                            break
-                        data += block
-                        m_ptr += 1
 
-                    if tag == 'NDEF':
-                        ndef_msg = self.parse_NDEF_msg(data)
-                        messages.append(ndef_msg)
+                amsg = None
+                if tag == 'NDEF':
+                    amsg = self.parse_NDEF_msg(data[f_rem:])
+                    messages.append(amsg)
 
-                    if terminate:
-                        break
+                for record in amsg:
+                    _TYPE = 0
+                    if record[_TYPE]:
+                        terminate = True
+                if terminate:
+                    break
 
-            except Exception as e:
-                self.logger.error("Error, probably lost card connection: {}".format(e))
-                self.reader = None
-                continue
-            self.logger.info('after ex')
+
             attendee_id = None
             event_id = None
             salutation = None
@@ -194,18 +200,28 @@ class CollectionModule(ModuleProcess):
             time.sleep(5)
 
     def parse_TLV_header(self, barr):
+        print('parsing TLV header bytes: ', barr)
         # return (tag, length (in bytes), [value] (if length != 0x00))
-        tag = None
-        length = None
-        if barr[0] == 0x00: tag = 'NULL'
-        if barr[0] == 0x03: tag = 'NDEF'
-        if barr[0] == 0xFD: tag = 'PROPRIETARY'
-        if barr[0] == 0xFE: tag = 'TERMINATOR'
+        try:
+            tag = None
+            length = None
+            if barr[0] == 0x00: tag = 'NULL'
+            if barr[0] == 0x03: tag = 'NDEF'
+            if barr[0] == 0xFD: tag = 'PROPRIETARY'
+            if barr[0] == 0xFE: tag = 'TERMINATOR'
+            f_rem = 0
 
-        if barr[1] != 0xFF: print('NOT USING 3 BYTE FORMAT')
-        length = struct.unpack('>h', bytes(barr[2:4]))[0]
+            if barr[1] != 0xFF: 
+                print('NOT USING 3 BYTE FORMAT')
+                length = barr[1]
+                f_rem = 2
+            else:
+                length = struct.unpack('>h', bytes(barr[2:4]))[0]
 
-        return tag, length
+        except Exception as e:
+            print("Error parsing TLV header")
+            return 0,0,0
+        return tag, length, f_rem
 
     def parse_NDEF_header(self, barr):
         # parse ndef header
@@ -215,23 +231,35 @@ class CollectionModule(ModuleProcess):
 
         #         TYPE_LEN (type length), PAY_LEN (payload length),
         #         ID (record type indicator)
-        TNF = (0b00000111&barr[0])
-        ID_LEN = (0b00001000&barr[0])>>3
-        SR = (0b00010000&barr[0])>>4
-        CF = (0b00100000&barr[0])>>5
-        ME = (0b01000000&barr[0])>>6
-        MB = (0b10000000&barr[0])>>7
+        try:
+            TNF = (0b00000111&barr[0])
+            ID_LEN = (0b00001000&barr[0])>>3
+            SR = (0b00010000&barr[0])>>4
+            CF = (0b00100000&barr[0])>>5
+            ME = (0b01000000&barr[0])>>6
+            MB = (0b10000000&barr[0])>>7
 
-        TYPE_LEN = barr[1]
-        PAY_LEN = struct.unpack('>I', bytes(barr[2:6]))[0]
-        PAY_TYPE = None
-        if TYPE_LEN > 0:
-            PAY_TYPE = bytearray(barr[6:6+TYPE_LEN]).decode('UTF-8')
-        REC_ID = None
-        if ID_LEN > 0:
-            REC_ID = barr[6+TYPE_LEN:6+TYPE_LEN+ID_LEN]
+            TYPE_LEN = barr[1]
+            if SR:
+                PAY_LEN = barr[2]
+                PAY_TYPE = None
+                REC_ID = None
+                if TYPE_LEN > 0:
+                    PAY_TYPE = bytearray(barr[3:3+TYPE_LEN]).decode('UTF-8')
+                if ID_LEN > 0:
+                    REC_ID = barr[3+TYPE_LEN:3+TYPE_LEN+ID_LEN]
+            else:
+                PAY_LEN = struct.unpack('>I', bytes(barr[2:6]))[0]
+                PAY_TYPE = None
+                if TYPE_LEN > 0:
+                    PAY_TYPE = bytearray(barr[6:6+TYPE_LEN]).decode('UTF-8')
+                REC_ID = None
+                if ID_LEN > 0:
+                    REC_ID = barr[6+TYPE_LEN:6+TYPE_LEN+ID_LEN]
 
-        return (TNF, ID_LEN, SR, CF, ME, MB, TYPE_LEN, PAY_LEN, PAY_TYPE, REC_ID)
+            return (TNF, ID_LEN, SR, CF, ME, MB, TYPE_LEN, PAY_LEN, PAY_TYPE, REC_ID)
+        except Exception as e:
+            return (None, None, None, None, None, None, None, None, None, None)
 
     def parse_NDEF_msg(self, data):
         # iterate through the message bytes, reading ndef messages
@@ -242,6 +270,17 @@ class CollectionModule(ModuleProcess):
             try:
                 (TNF, ID_LEN, SR, CF, ME, MB, TYPE_LEN, PAY_LEN, 
                     PAY_TYPE, REC_ID) = self.parse_NDEF_header(data)
+                if (TNF is None and 
+                    ID_LEN is None and 
+                    SR is None and 
+                    CF is None and 
+                    ME is None and 
+                    MB is None and 
+                    TYPE_LEN is None and 
+                    PAY_LEN is None and 
+                    PAY_TYPE is None and 
+                    REC_ID is None):
+                        return []
                 itr += 6 + ID_LEN + TYPE_LEN
 
                 rec_payload = data[itr:itr+PAY_LEN]
