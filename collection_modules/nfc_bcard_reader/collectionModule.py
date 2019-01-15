@@ -14,7 +14,6 @@ import struct
 import math
 import datetime
 from smartcard.scard import *
-import nfc.ndef
 
 class CollectionModule(ModuleProcess):
 
