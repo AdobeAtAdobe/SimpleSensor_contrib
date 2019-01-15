@@ -14,6 +14,7 @@ import struct
 import math
 import datetime
 from smartcard.scard import *
+import nfc.ndef
 
 class CollectionModule(ModuleProcess):
 
@@ -81,125 +82,130 @@ class CollectionModule(ModuleProcess):
                     + 'trying to find readers again. Is it plugged in?')
                     time.sleep(5)
 
-            # connect to card
-            card = self.get_card()
-            if card is None or self.reader is None: 
-                continue
-
-            # try:
-            cc_block_msg = [0xFF, 0xB0, 0x00, bytes([3])[0], 0x04]
             try:
-                cc_block = self.send_transmission(card, cc_block_msg)
-            except Exception as e:
-                self.reader = None
-                continue
+                # connect to card
+                card = self.get_card()
+                if card is None or self.reader is None: 
+                    continue
 
-
-            if (cc_block is None or cc_block[0] != 225): # magic number 0xE1 means data to be read
-                self.reader = None
-                continue
-
-            data_size = cc_block[2]*8/4 # CC[2]*8 is data area size in bytes (/4 for blocks)
-            messages = []
-            data= []
-            m_ptr = 4 # pointer to actual card memory location
-            terminate = False
-            errd = False
-            while(m_ptr <= data_size+4 and not errd):
-                msg = None
-                if m_ptr > 255:
-                    byte_one = math.floor(m_ptr/256)
-                    byte_two = m_ptr%(byte_one*256)
-                    msg = [0xFF, 0xB0, bytes([byte_one])[0], bytes([byte_two])[0], 0x01]
-                else:
-                    msg = [0xFF, 0xB0, 0x00, bytes([m_ptr])[0], 0x01]
-
+                # try:
+                cc_block_msg = [0xFF, 0xB0, 0x00, bytes([3])[0], 0x04]
                 try:
-                    block = self.send_transmission(card, msg)
-                except RuntimeError as e:
-                    self.logger.error("Error, empty block, reset reader 2")
+                    cc_block = self.send_transmission(card, cc_block_msg)
+                except Exception as e:
                     self.reader = None
-                    errd = True
-                    break
+                    continue
 
-                # decode TLV header
-                tag, length, f_rem = self.parse_TLV_header(block)
-                if length != 255:
-                    m_ptr -= 1
-                if tag == 'TERMINATOR':
-                    terminate = True
-                # now read the block of data into a record
-                m_ptr += 1
-                data = []
-                for i in range(int(length/4)): # working with blocks
-                    if errd:
-                        break
+
+                if (cc_block is None or cc_block[0] != 225): # magic number 0xE1 means data to be read
+                    self.reader = None
+                    continue
+
+                data_size = cc_block[2]*8/4 # CC[2]*8 is data area size in bytes (/4 for blocks)
+                messages = []
+                data= []
+                m_ptr = 4 # pointer to actual card memory location
+                terminate = False
+                errd = False
+                while(m_ptr <= data_size+4 and not errd):
                     msg = None
                     if m_ptr > 255:
                         byte_one = math.floor(m_ptr/256)
                         byte_two = m_ptr%(byte_one*256)
-                        msg = [0xFF, 0xB0, bytes([byte_one])[0], bytes([byte_two])[0], 0x04]
+                        msg = [0xFF, 0xB0, bytes([byte_one])[0], bytes([byte_two])[0], 0x01]
                     else:
-                        msg = [0xFF, 0xB0, 0x00, bytes([m_ptr])[0], 0x04]
+                        msg = [0xFF, 0xB0, 0x00, bytes([m_ptr])[0], 0x01]
+
                     try:
                         block = self.send_transmission(card, msg)
                     except RuntimeError as e:
-                        self.logger.error("Error, empty block, reset reader 3")
+                        self.logger.error("Error, empty block, reset reader 2")
                         self.reader = None
                         errd = True
                         break
-                    data += block
-                    m_ptr += 1
 
-                amsg = None
-                if tag == 'NDEF':
-                    amsg = self.parse_NDEF_msg(data[f_rem:])
-                    messages.append(amsg)
-
-                for record in amsg:
-                    _TYPE = 0
-                    if record[_TYPE]:
+                    # decode TLV header
+                    tag, length, f_rem = self.parse_TLV_header(block)
+                    if length != 255:
+                        m_ptr -= 1
+                    if tag == 'TERMINATOR':
                         terminate = True
-                if terminate:
-                    break
-
-
-            attendee_id = None
-            event_id = None
-            salutation = None
-            first_name = None 
-            last_name = None
-            middle_name = None
-            _TYPE = 0
-            _ID = 1
-            _PAYLOAD = 2
-            for message in messages:
-                for record in message:
-                    if record[_TYPE] == 'bcard.net:bcard' and len(record[_PAYLOAD])>40: # to avoid bcard url payloads
+                    # now read the block of data into a record
+                    m_ptr += 1
+                    data = []
+                    for i in range(int(length/4)): # working with blocks
+                        if errd:
+                            break
+                        msg = None
+                        if m_ptr > 255:
+                            byte_one = math.floor(m_ptr/256)
+                            byte_two = m_ptr%(byte_one*256)
+                            msg = [0xFF, 0xB0, bytes([byte_one])[0], bytes([byte_two])[0], 0x04]
+                        else:
+                            msg = [0xFF, 0xB0, 0x00, bytes([m_ptr])[0], 0x04]
                         try:
-                            (attendee_id, event_id, salutation, first_name, 
-                                last_name, middle_name) = self.decode_bcard_payload(record[_PAYLOAD])
-                        except Exception as e:
-                            self.logger.error("Error decoding BCARD payload: {}".format(e))
-            xdata = {
-                'attendee_id': attendee_id,
-                'event_id': event_id,
-                'salutation': salutation,
-                'first_name': first_name,
-                'last_name': last_name,
-                'middle_name': middle_name
-            }
-            msg = self.build_message(topic='scan_in', extendedData=xdata)
-            self.logger.info('Sending message: {}'.format(msg))
-            self.put_message(msg)
+                            block = self.send_transmission(card, msg)
+                        except RuntimeError as e:
+                            self.logger.error("Error, empty block, reset reader 3")
+                            self.reader = None
+                            errd = True
+                            break
+                        data += block
+                        m_ptr += 1
+
+                    amsg = None
+                    if tag == 'NDEF':
+                        amsg = self.parse_NDEF_msg(data[f_rem:])
+                        messages.append(amsg)
+
+                    for record in amsg:
+                        _TYPE = 0
+                        if record[_TYPE]:
+                            terminate = True
+                    if terminate:
+                        break
+
+
+                attendee_id = None
+                event_id = None
+                salutation = None
+                first_name = None 
+                last_name = None
+                middle_name = None
+                _TYPE = 0
+                _ID = 1
+                _PAYLOAD = 2
+                for message in messages:
+                    for record in message:
+                        if record[_TYPE] == 'bcard.net:bcard' and len(record[_PAYLOAD])>40: # to avoid bcard url payloads
+                            try:
+                                (attendee_id, event_id, salutation, first_name, 
+                                    last_name, middle_name) = self.decode_bcard_payload(record[_PAYLOAD])
+                            except Exception as e:
+                                self.logger.error("Error decoding BCARD payload: {}".format(e))
+                xdata = {
+                    'attendee_id': attendee_id,
+                    'event_id': event_id,
+                    'salutation': salutation,
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'middle_name': middle_name
+                }
+                msg = self.build_message(topic='scan_in', extendedData=xdata)
+                self.logger.info('Sending message: {}'.format(msg))
+                self.put_message(msg)
+            except Exception as e:
+                self.logger.error('Loop error: {}'.format(e))
+                self.reader = None
+                continue
 
             self.reader = None
 
             # sleep for a bit to avoid double scanning
-            time.sleep(5)
+            time.sleep(3)
 
     def parse_TLV_header(self, barr):
-        print('parsing TLV header bytes: ', barr)
+        # print('parsing TLV header bytes: ', barr)
         # return (tag, length (in bytes), [value] (if length != 0x00))
         try:
             tag = None
@@ -218,7 +224,7 @@ class CollectionModule(ModuleProcess):
                 length = struct.unpack('>h', bytes(barr[2:4]))[0]
 
         except Exception as e:
-            print("Error parsing TLV header")
+            self.logger.error('Error parsing TLV header: {}'.format(e))
             return 0,0,0
         return tag, length, f_rem
 
@@ -258,6 +264,7 @@ class CollectionModule(ModuleProcess):
 
             return (TNF, ID_LEN, SR, CF, ME, MB, TYPE_LEN, PAY_LEN, PAY_TYPE, REC_ID)
         except Exception as e:
+            self.logger.error('Error parsing NDEF header: {}'.format(e))
             return (None, None, None, None, None, None, None, None, None, None)
 
     def parse_NDEF_msg(self, data):
@@ -292,6 +299,7 @@ class CollectionModule(ModuleProcess):
                 records.append(record)
             except Exception as e:
                 self.logger.error('Error parsing NDEF message: {}'.format(e))
+                return records
         return records
 
     def decode_bcard_payload(self, payload):
