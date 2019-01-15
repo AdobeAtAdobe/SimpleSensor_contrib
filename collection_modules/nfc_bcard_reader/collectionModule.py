@@ -280,7 +280,10 @@ class CollectionModule(ModuleProcess):
                     PAY_TYPE is None and 
                     REC_ID is None):
                         return []
-                itr += 6 + ID_LEN + TYPE_LEN
+                if SR:
+                    itr += 3 + ID_LEN + TYPE_LEN
+                else:
+                    itr += 6 + ID_LEN + TYPE_LEN
 
                 rec_payload = data[itr:itr+PAY_LEN]
                 itr += PAY_LEN
