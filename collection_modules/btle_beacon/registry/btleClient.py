@@ -16,7 +16,7 @@ class BtleClient(object):
         self.logger = ThreadsafeLogger(loggingQueue, "BtleRegisteredClient")
         
         # Counters and variables
-        self.clientInRangeTrigerCount = 2
+        self.clientInRangeTrigerCount = 1
         self.prevClientInMsgTime = None
         self.prevClientOutMsgTime = None
         self.numClientInRange=0
@@ -85,6 +85,8 @@ class BtleClient(object):
     def shouldSendClientInEvent(self):
         if self._gatewayType == 'proximity':
             if (self.prevClientInMsgTime == None or 
+                (self.prevClientOutMsgTime != None and 
+                    (self.prevClientOutMsgTime-self.prevClientInMsgTime).total_seconds() > 0) or
                 (datetime.now() - self.prevClientInMsgTime).total_seconds()*1000 >= self._proximityEventInterval):
                     if self.numClientInRange > self.clientInRangeTrigerCount:
                         self.logClientEventSend(" ClientIN event sent to controller ")
