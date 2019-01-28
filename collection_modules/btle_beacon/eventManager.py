@@ -32,6 +32,7 @@ class EventManager(object):
         self._sendClientInMessages = self.moduleConfig['SendClientInMessages']
         self._sendClientOutMessages = self.moduleConfig['SendClientOutMessages']
         self._sendUpdateMessages = self.moduleConfig['SendUpdateMessages']
+        self._clientInThreshold = self.moduleConfig['BtleRssiClientInThreshold']
 
         if self._sendUpdateMessages:
             self._updateFPS = self.moduleConfig['UpdateFPS']
@@ -154,7 +155,7 @@ class EventManager(object):
         if client:
             data = client.getExtendedDataForEvent()  
         else:
-            data = self.clientRegistry.getUpdateData()
+            data = self.clientRegistry.getUpdateData(self._clientInThreshold)
             if len(data['nearby']) == 0: return
 
         eventMessage = Message(
@@ -180,5 +181,3 @@ class EventManager(object):
 
     def stop(self):
         self.alive = False
-
-
