@@ -95,14 +95,20 @@ class ClientRegistry(object):
         self.rClients = {}  #registered clients
         self.collectionPointConfig = collectionPointConfig
 
-    def getAll(self):
+    def getAll(self, thresh=-68):
         """
-        Get all registered clients as dicts
+        Get registered clients as dict
+        Only return clients above thresh RSSI
         """
-        return {k: v.getExtendedDataForEvent() for k, v in self.rClients.items()}
+        toret = {}
+        for k, v in self.rClients.items():
+            xdata = v.getExtendedDataForEvent()
+            if xdata['rssi']>thresh:
+                toret[k] = xdata
+        return toret
 
-    def getUpdateData(self):
-        return {'nearby': self.getAll()}
+    def getUpdateData(self, thresh=-68):
+        return {'nearby': self.getAll(thresh)}
 
     def getClient(self,mac):
         """
@@ -136,7 +142,7 @@ class ClientRegistry(object):
         for mac in self.rClients:
             regClient = self.rClients[mac]
 
-            # print('now-regClient.lastRegisteredTime ---- clientTimeout <0 : ',(now-regClient.lastRegisteredTime).total_seconds()*1000, clientTimeout)
+            print('now-regClient.lastRegisteredTime ---- clientTimeout <0 : ',(now-regClient.lastRegisteredTime).total_seconds()*1000, clientTimeout)
             if (now-regClient.lastRegisteredTime).total_seconds()*1000-clientTimeout<0:
                 clientsToBeRemoved.append(regClient)
 
