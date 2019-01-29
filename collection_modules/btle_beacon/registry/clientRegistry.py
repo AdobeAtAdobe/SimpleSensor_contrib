@@ -169,5 +169,7 @@ class ClientRegistry(object):
 
     def removeClient(self,client):
         #self.logger.debug("in removeRegisteredClient with %s"%client.getUdid())
+        self.logger.info('length before remove: %s'%len(self.rClients))
         self.rClients.pop(client.getMac())
+        self.logger.info('length after remove: %s'%len(self.rClients))
         self.onClientRemoved(client)
