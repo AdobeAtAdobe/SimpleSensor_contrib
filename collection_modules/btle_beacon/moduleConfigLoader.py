@@ -4,6 +4,7 @@ Module specific config loader
 from simplesensor.shared import ThreadsafeLogger
 import configparser
 import os.path
+import json
 
 def load(loggingQueue, name):
     """ Load module specific config into dictionary, return it"""    
@@ -157,6 +158,22 @@ def loadModule(thisConfig, logger, configParser):
         configValue = 38400
     logger.info("Btle device baud rate : %s" % configValue)
     thisConfig['BtleDeviceBaudRate'] = configValue
+
+    """Btle UUID focus list"""
+    try:
+        tVal=configParser.get('ModuleConfig','btle_uuid_focus_list')
+        configValue = json.loads(tVal)
+        if type(configValue)!=list:
+            configValue = [tVal]
+        else:
+            import re
+            pattern = re.compile('[\W_]+', re.UNICODE)
+            for i in range(len(configValue)):
+                configValue[i] = pattern.sub('', configValue[i].upper())
+    except:
+        configValue = ['any']
+    logger.info("Btle UUID focus list : %s" % configValue)
+    thisConfig['BtleUuidFocusList'] = configValue
 
     """Btle advertising major min"""
     try:

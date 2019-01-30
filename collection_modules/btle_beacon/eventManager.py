@@ -33,6 +33,13 @@ class EventManager(object):
         self._sendClientOutMessages = self.moduleConfig['SendClientOutMessages']
         self._sendUpdateMessages = self.moduleConfig['SendUpdateMessages']
 
+        self._rssiClientInThresh = self.moduleConfig['BtleRssiClientInThreshold']
+        self._rssiErrorVar = self.moduleConfig['BtleRssiErrorVariance']
+        self.__clientOutThresholdMin = int(
+            self._rssiClientInThresh + 
+            (self._rssiClientInThresh * self._rssiErrorVar/2)
+            )
+
         if self._sendUpdateMessages:
             self._updateFPS = self.moduleConfig['UpdateFPS']
             self.updateLoopThread = Thread(target=self.updateLoop)
@@ -118,6 +125,8 @@ class EventManager(object):
 
         if client.sweepShouldSendClientOutEvent():
             self.sendEventToController(topic=_CLIENT_OUT_TOPIC, client=client)
+        elif client.sweepShouldSendClientOutEvent():
+            self.sendEventToController(topic=_CLIENT_OUT_TOPIC, client=client)
 
         #we dont need to count for ever and eat up all the memory
         if self.__stats_totalRemoveEvents > 1000000:
@@ -154,7 +163,7 @@ class EventManager(object):
         if client:
             data = client.getExtendedDataForEvent()  
         else:
-            data = self.clientRegistry.getUpdateData()
+            data = self.clientRegistry.getUpdateData(self.__clientOutThresholdMin)
             if len(data['nearby']) == 0: return
 
         eventMessage = Message(
@@ -180,5 +189,3 @@ class EventManager(object):
 
     def stop(self):
         self.alive = False
-
-
