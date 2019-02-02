@@ -96,7 +96,7 @@ class BtleClient(object):
                     (self.prevClientOutMsgTime-self.prevClientInMsgTime).total_seconds() > 0) or
                 (datetime.now() - self.prevClientInMsgTime).total_seconds()*1000 >= self._proximityEventInterval):
                     if self.numClientInRange > self.clientInRangeTrigerCount:
-                        self.logClientEventSend(" ClientIN event sent to controller ")
+#                         self.logClientEventSend(" ClientIN event sent to controller ")
                         self.zeroEventRangeCounters()
                         return True
 
