@@ -120,17 +120,17 @@ class BtleClient(object):
 
                 #check timing on last event sent
                 if (self.prevClientOutMsgTime is not None and
-                    (datetime.now() - self.prevClientOutMsgTime).total_seconds()*1000 < self._proximityEventInterval):
-                        return False
+                    (datetime.now() - self.prevClientOutMsgTime).total_seconds()*1000 > self._proximityEventInterval):
+                        self.logClientEventSend("ClientOUT event b sent to controller")
+                        self.zeroEventRangeCounters()
+                        return True
                 elif self.prevClientOutMsgTime is not None:
-                    self.logClientEventSend("ClientOUT event b sent to controller")
-                    self.zeroEventRangeCounters()
-                    return True
+                    return False
             elif self.numClientOutRange > self._outClientThreshold:
                 # self.logger.debug("Client out count "+
                 #    "%i is past max.  Resetting." %self.numClientOutRange)
                 self.numClientOutRange = 0
-                
+
         #TODO add in other types of gateway types
         return False
 
