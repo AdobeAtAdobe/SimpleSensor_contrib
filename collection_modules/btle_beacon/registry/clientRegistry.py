@@ -102,7 +102,7 @@ class ClientRegistry(object):
         """
         toret = {}
         for k, v in self.rClients.items():
-            xdata = v.getExtendedDataForEvent()
+            xdata = v.getExtendedDataForUpdateEvent()
             if xdata['rssi']>thresh:
                 toret[k] = xdata
         return toret
