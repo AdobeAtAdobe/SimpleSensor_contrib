@@ -235,6 +235,18 @@ class BtleClient(object):
             extraData['industry'] = self.uidMap.get(self.beaconId)
 
         return extraData
+       
+    def getExtendedDataForUpdateEvent(self):
+        extraData = {}
+        extraData['filteredRssi'] = self.filter.state
+        extraData['beaconId'] = self.beaconId
+        extraData['beaconMac'] = self.detectionData.extraData["beaconMac"]
+        extraData['major'] = self.detectionData.extraData["majorNumber"]
+        extraData['minor'] = self.detectionData.extraData["minorNumber"]
+        if self.collectionPointConfig['CecData']:
+            extraData['industry'] = self.uidMap.get(self.beaconId)
+
+        return extraData
 
     #part of interface for Registered Client
     def setClientInMessageSentToController(self):
