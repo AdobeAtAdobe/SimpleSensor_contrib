@@ -76,7 +76,6 @@ class BtleClient(object):
                     self.numClientOutRange = 0
                     self.logClientRange("CLIENTIN")
                 elif (self.detectionData.extraData['rssi'] < self.__clientOutThresholdMin):
-                    self.logger.debug('in increment client out: %s'%self.detectionData.extraData['rssi'])
                     self.numClientOutRange += 1
                     self.numClientInRange = 0
                     self.logClientRange("CLIENTOUT")
