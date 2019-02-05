@@ -76,27 +76,20 @@ class BtleClient(object):
                     self.numClientOutRange = 0
                     self.logClientRange("CLIENTIN")
                 elif (self.detectionData.extraData['rssi'] < self.__clientOutThresholdMin):
+                    self.logger.debug('in increment client out: %s'%self.detectionData.extraData['rssi'])
                     self.numClientOutRange += 1
-                    #self.numClientInRange = 0
+                    self.numClientInRange = 0
                     self.logClientRange("CLIENTOUT")
 
     #part of interface for Registered Client
     def shouldSendClientInEvent(self):
-        # self.logger.debug("SHOULD SEND CLIENT IN? ")
-        # self.logger.debug("self.prevClientInMsgTime: %s"%self.prevClientInMsgTime)
-        # self.logger.debug("self.prevClientOutMsgTime: %s"%self.prevClientOutMsgTime)
-        # if(self.prevClientOutMsgTime is not None and self.prevClientInMsgTime is not None):
-        #     self.logger.debug("(self.prevClientOutMsgTime-self.prevClientInMsgTime).total_seconds(): %s"%(self.prevClientOutMsgTime-self.prevClientInMsgTime).total_seconds())
-        # if(self.prevClientInMsgTime is not None):
-        #     self.logger.debug("datetime.now() - self.prevClientInMsgTime).total_seconds()*1000: %s"%((datetime.now() - self.prevClientInMsgTime).total_seconds()*1000))
-        # self.logger.debug("self.numClientInRange > self.clientInRangeTrigerCount: %s > %s"%(self.numClientInRange, self.clientInRangeTrigerCount))
         if self._gatewayType == 'proximity':
             if (self.prevClientInMsgTime == None or 
                 (self.prevClientOutMsgTime != None and 
                     (self.prevClientOutMsgTime-self.prevClientInMsgTime).total_seconds() > 0) or
                 (datetime.now() - self.prevClientInMsgTime).total_seconds()*1000 >= self._proximityEventInterval):
                     if self.numClientInRange > self.clientInRangeTrigerCount:
-#                         self.logClientEventSend(" ClientIN event sent to controller ")
+                        # self.logClientEventSend(" ClientIN event sent to controller ")
                         self.zeroEventRangeCounters()
                         return True
 
@@ -114,14 +107,16 @@ class BtleClient(object):
                 if (self.prevClientOutMsgTime == None or self.prevClientOutMsgTime < self.prevClientInMsgTime):
                     #do we have enought qualifying out events. we dont want to throw one too soon
                     if (self.numClientOutRange >= self._outClientThreshold):
-                        self.logClientEventSend("ClientOUT event a sent to controller")
+                        # self.logClientEventSend("ClientOUT event a sent to controller")
+                        self.logger.debug("out case B: client %s"%self.detectionData.extraData["beaconMac"])
                         self.zeroEventRangeCounters()
                         return True
 
                 #check timing on last event sent
                 if (self.prevClientOutMsgTime is not None and
                     (datetime.now() - self.prevClientOutMsgTime).total_seconds()*1000 > self._proximityEventInterval):
-                        self.logClientEventSend("ClientOUT event b sent to controller")
+                        # self.logClientEventSend("ClientOUT event b sent to controller")
+                        self.logger.debug("out case A: client %s"%self.detectionData.extraData["beaconMac"])
                         self.zeroEventRangeCounters()
                         return True
                 elif self.prevClientOutMsgTime is not None:
@@ -136,9 +131,12 @@ class BtleClient(object):
 
     #part of interface for Registered Client
     def sweepShouldSendClientOutEvent(self):
+        self.logger.debug("trace 1")
         if self._gatewayType == 'proximity':
             # has an in event been sent yet? if not, no sweep needed
+            self.logger.debug("trace 2")
             if self.prevClientInMsgTime:
+                self.logger.debug("trace 3")
                 # sweep old clients, so check most recent message sent
                 # if no message has been sent in the past proximityEventInterval*3 milliseconds
                 # sweep the client because it is probably gone
@@ -146,14 +144,19 @@ class BtleClient(object):
                     (self.prevClientInMsgTime>self.prevClientOutMsgTime and
                     (datetime.now() - self.prevClientOutMsgTime).total_seconds()*1000 > 
                         self._proximityEventInterval*3)):
-                            self.logClientEventSend("Sweep case a is sending ClientOUT on")
+                            self.logger.debug("trace 4")
+                            self.logger.debug("sweep: client %s"%self.detectionData.extraData["beaconMac"])
+                            # self.logClientEventSend("Sweep case a is sending ClientOUT on")
                             self.zeroEventRangeCounters()
                             return True
                 else:
+                    self.logger.debug("trace 5")
                     return False
             else:
+                self.logger.debug("trace 6")
                 return False
         #TODO add in other types of gateway types
+        self.logger.debug("trace 7")
         return False
 
     #part of interface for Registered Client
