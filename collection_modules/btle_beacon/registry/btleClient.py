@@ -238,6 +238,7 @@ class BtleClient(object):
        
     def getExtendedDataForUpdateEvent(self):
         extraData = {}
+        extraData['rssi'] = self.detectionData.extraData['rssi']
         extraData['filteredRssi'] = self.filter.state
         extraData['beaconId'] = self.beaconId
         extraData['beaconMac'] = self.detectionData.extraData["beaconMac"]
