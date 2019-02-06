@@ -110,6 +110,9 @@ class BtleClient(object):
                         self.logger.debug("out case B: client %s"%self.detectionData.extraData["beaconMac"])
                         self.zeroEventRangeCounters()
                         return True
+                elif (self.prevClientOutMsgTime != None and 
+                    self.prevClientOutMsgTime > self.prevClientInMsgTime):
+                        return False
 
                 #check timing on last event sent
                 if (self.prevClientOutMsgTime is not None and
