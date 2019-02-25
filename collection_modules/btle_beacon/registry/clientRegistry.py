@@ -142,8 +142,9 @@ class ClientRegistry(object):
         for mac in self.rClients:
             regClient = self.rClients[mac]
 
-            # self.logger.debug('now-regClient.lastRegisteredTime ---- clientTimeout <0 : %s ---- %s'%(((now-regClient.lastRegisteredTime).total_seconds()*1000), clientTimeout))
-            if regClient.sweepShouldSendClientOutEvent():
+            # self.logger.debug('now-regClient.lastRegisteredTime ---- clientTimeout >0 : %s ---- %s'%(((now-regClient.lastRegisteredTime).total_seconds()*1000), clientTimeout))
+            # if regClient.sweepShouldSendClientOutEvent():
+            if (now-regClient.lastRegisteredTime).total_seconds()*1000-clientTimeout>0:
                 clientsToBeRemoved.append(regClient)
 
         for client in clientsToBeRemoved:
